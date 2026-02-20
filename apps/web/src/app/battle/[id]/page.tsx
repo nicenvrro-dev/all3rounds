@@ -288,7 +288,7 @@ export default function BattlePage() {
         {/* Battle header - sticky */}
         <div className="sticky top-14 z-40 -mx-4 mb-8 bg-background/95 backdrop-blur-sm px-4 pb-4 pt-2 border-b border-border">
           <div className="flex items-start justify-between gap-4">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            <h1 className="text-4xl font-black tracking-tighter uppercase text-foreground drop-shadow-sm">
               {battle.title}
             </h1>
             <Button
@@ -322,7 +322,7 @@ export default function BattlePage() {
             <Button
               variant="link"
               size="sm"
-              className="h-auto p-0 text-red-600 hover:text-red-700"
+              className="h-auto p-0 font-bold text-primary hover:text-primary/80"
               asChild
             >
               <a href={battle.url} target="_blank" rel="noopener noreferrer">
@@ -456,7 +456,7 @@ export default function BattlePage() {
                                     href={ytLink}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="block leading-7 text-sm text-foreground transition-colors hover:text-red-500"
+                                    className="block leading-7 text-sm text-foreground transition-all hover:text-primary hover:font-medium hover:translate-x-1"
                                   >
                                     {line.content}
                                   </a>

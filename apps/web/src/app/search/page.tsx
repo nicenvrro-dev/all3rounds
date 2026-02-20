@@ -40,9 +40,7 @@ function SearchResults() {
           `/api/search?q=${encodeURIComponent(query)}&page=${p}`,
         );
         if (res.status === 429) {
-          setError(
-            "Sobrang dami ng search mo, pre. Sandali lang, try mo ulit.",
-          );
+          setError("You're searching too fast, chill for a sec and try again.");
           setLoading(false);
           return;
         }
@@ -54,7 +52,7 @@ function SearchResults() {
         setPage(data.page);
         setTotalPages(data.totalPages);
       } catch {
-        setError("May problema sa search. Try mo ulit.");
+        setError("Search failed. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -82,10 +80,10 @@ function SearchResults() {
       <main className="mx-auto max-w-5xl px-4 py-6">
         {/* Result count */}
         {!loading && !error && query && (
-          <p className="mb-4 text-sm text-muted-foreground">
+          <p className="mb-4 text-sm font-medium text-muted-foreground">
             {total === 0
-              ? `Walang nahanap para sa "${query}"`
-              : `${total} result${total !== 1 ? "s" : ""} para sa "${query}"`}
+              ? `No results found for "${query}"`
+              : `${total} result${total !== 1 ? "s" : ""} for "${query}"`}
           </p>
         )}
 

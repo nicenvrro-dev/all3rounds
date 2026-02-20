@@ -30,9 +30,9 @@ export default function SearchBar({
 
   return (
     <form onSubmit={handleSubmit} className="w-full">
-      <div className="relative">
+      <div className="relative group">
         <Search
-          className={`absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground ${
+          className={`absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-primary ${
             isLarge ? "h-5 w-5" : "h-4 w-4"
           }`}
         />
@@ -40,20 +40,20 @@ export default function SearchBar({
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Hanapin ang linya, verse, o salita..."
+          placeholder="Search for a line, verse, or word..."
           autoFocus={autoFocus}
-          className={`rounded-xl shadow-sm ${
-            isLarge ? "h-14 pl-12 pr-28 text-lg" : "h-12 pl-11 pr-24 text-base"
+          className={`rounded-xl border-2 transition-all shadow-none focus-visible:ring-0 focus-visible:border-primary ${
+            isLarge ? "h-14 pl-12 pr-32 text-lg" : "h-12 pl-11 pr-24 text-base"
           }`}
         />
         <Button
           type="submit"
           size={isLarge ? "default" : "sm"}
-          className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-lg ${
+          className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-lg font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-all ${
             isLarge ? "px-6" : "px-4"
           }`}
         >
-          Hanapin
+          Search
         </Button>
       </div>
     </form>

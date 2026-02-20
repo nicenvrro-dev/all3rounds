@@ -35,7 +35,7 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
         regex.test(part) ? (
           <mark
             key={i}
-            className="rounded-sm bg-blue-300/30 px-0.5 text-foreground"
+            className="rounded-sm bg-primary/40 px-1 text-foreground"
           >
             {part}
           </mark>
@@ -64,7 +64,7 @@ export default function ResultCard({
 
   return (
     <>
-      <Card className="group transition-all hover:shadow-md hover:border-stone-300 dark:hover:border-stone-600">
+      <Card className="group transition-all border-2 border-border hover:shadow-[4px_4px_0_var(--color-primary)] hover:-translate-y-[2px] bg-card">
         <CardContent className="p-5">
           {/* Line content */}
           <p className="text-lg font-medium leading-relaxed text-card-foreground">
@@ -113,7 +113,11 @@ export default function ResultCard({
 
           {/* Actions */}
           <div className="mt-4 flex items-center gap-3">
-            <Button asChild size="sm" className="bg-red-600 hover:bg-red-700">
+            <Button
+              asChild
+              size="sm"
+              className="bg-primary text-primary-foreground font-bold hover:bg-primary/90"
+            >
               <a href={ytLink} target="_blank" rel="noopener noreferrer">
                 <Play className="h-4 w-4" />
                 Play at {formatTime(result.start_time)}

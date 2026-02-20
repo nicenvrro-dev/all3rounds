@@ -9,7 +9,7 @@ export default function Header() {
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <Link
             href="/"
-            className="text-lg font-bold tracking-tight text-foreground"
+            className="text-xl font-black tracking-tighter uppercase text-primary drop-shadow-[1px_1px_0px_var(--color-secondary)] transition-transform hover:scale-105"
           >
             talasalita
           </Link>
