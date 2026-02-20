@@ -127,16 +127,17 @@ export default function ResultCard({
 
             {/* Actions */}
             <div className="mt-3 flex items-center gap-2">
-              <a
-                href={ytLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.open(ytLink, "_blank", "noopener,noreferrer");
+                }}
                 className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-opacity hover:opacity-80"
               >
                 <Play className="h-3 w-3" />
                 Play at {formatTime(result.start_time)}
-              </a>
+              </button>
 
               <button
                 onClick={(e) => {
