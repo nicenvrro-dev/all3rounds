@@ -79,11 +79,12 @@ We need a relational structure to link lines back to battles and specific emcees
 
 ### Phase 2: Python Extraction Pipeline `[apps/pipeline]`
 
-1.  **Downloader**: Create script using `yt-dlp` to extract audio (mp3/wav) from a YouTube URL.
-2.  **Transcription**:
-    - Load `whisperX`.
-    - Run transcription on audio file (Language: `tl` or `en`, usually auto-detect).
-    - Run Alignment (improves timestamp precision).
+1.  **Mass Downloader & Sync**:
+    - Use `yt-dlp` to extract the entire FlipTop channel video list (`https://www.youtube.com/@fliptopbattles`).
+    - **Deduplication Check**: Before downloading, query Supabase (`SELECT youtube_id FROM battles`). If the video exists, skip it. This makes the script idempotent and perfect for Google Colab restarts.
+2.  **Transcription & Diarization**:
+    - Load `whisperX`. Use `--batch_size 16` and `--compute_type float16` (fp16) to maximize Colab's T4 GPU memory. Use `large-v3` or `large-v2` to maintain Taglish accuracy.
+    - Run transcription and Alignment.
     - Run Diarization (assigns `SPEAKER_01` labels).
 3.  **Ingestion**:
     - Parse the JSON output from WhisperX.
@@ -105,7 +106,11 @@ We need a relational structure to link lines back to battles and specific emcees
       - **Round**: Round number (e.g., "Round 1").
       - **Event**: Event Name & Date.
       - **Action**: "Play on YouTube" link (Deep linked to specific timestamp).
-3.  **Community Features (Login Required)**:
+3.  **Battles Directory Page (`/battles`)**:
+    - A dedicated route listing all 1000+ available battles in the database.
+    - Simple grid layout with YouTube thumbnails, event names, and dates.
+    - Includes a filter/search specifically for battles (e.g., "Loonie battles").
+4.  **Community Features (Login Required)**:
     - Integrate Supabase Auth (Google/Facebook login).
     - **"Edit This Line"**: Logged-in users can click a pencil icon on a result to:
       - Correct the text (fix AI typos).

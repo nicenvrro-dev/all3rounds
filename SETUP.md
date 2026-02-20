@@ -107,21 +107,26 @@ cp .env.example .env
 #    SUPABASE_SERVICE_KEY=your-service-role-key
 #    HF_TOKEN=your-huggingface-token
 
-# 5. Run a transcription
+# 5. Run a transcription for a single battle
 python transcribe.py \
   --url "https://www.youtube.com/watch?v=VIDEO_ID" \
   --title "Loonie vs Abra" \
   --event "Ahon 13" \
   --date 2024-06-15 \
   --save-json output.json
+
+# OR 6. Run the mass extraction script for the entire FlipTop channel
+python mass_pipeline.py
 ```
 
 ### 3.3 HuggingFace Token (Required for Diarization)
 
 1. Go to [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
 2. Create a new token (read access is fine).
-3. Accept the user agreement for **pyannote/speaker-diarization-3.1**:
-   [https://huggingface.co/pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
+3. **CRITICAL:** You must accept the user agreement on **ALL THREE** of these pages using your logged-in account:
+   - [https://huggingface.co/pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
+   - [https://huggingface.co/pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
+   - [https://huggingface.co/pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
 4. Paste the token in your `.env` file as `HF_TOKEN`.
 
 ### 3.4 Google Colab (Free GPU — No Local GPU Needed)
@@ -134,7 +139,8 @@ python transcribe.py \
 1. Open [colab.research.google.com](https://colab.research.google.com).
 2. Create a new notebook.
 3. Set runtime to **GPU** (Runtime → Change runtime type → T4 GPU).
-4. Upload `colab_setup.py`, `transcribe.py`, and `.env` to your **Google Drive** (e.g., in a folder called `talasalita`).
+4. Open your Google Drive in a separate tab, and create a new folder named `talasalita`.
+5. Upload `colab_setup.py`, `transcribe.py`, `mass_pipeline.py`, and `.env` directly into that new `talasalita` folder.
 
 #### Each Session — Run This First
 
@@ -146,6 +152,7 @@ drive.mount('/content/drive')
 # Copy files from Drive (adjust path if needed)
 !cp /content/drive/MyDrive/talasalita/colab_setup.py .
 !cp /content/drive/MyDrive/talasalita/transcribe.py .
+!cp /content/drive/MyDrive/talasalita/mass_pipeline.py .
 !cp /content/drive/MyDrive/talasalita/.env .
 ```
 
@@ -160,8 +167,14 @@ drive.mount('/content/drive')
 ```
 
 ```python
-# Cell 4: Run transcription
+# Cell 4: Run transcription (Single Video)
 !python transcribe.py --url "https://..." --title "..." --event "..."
+
+# OR Cell 4: Run Mass Extraction for all missing battles (Test with 5 videos)
+!python mass_pipeline.py --limit 5
+
+# OR run all 1000+ videos:
+# !python mass_pipeline.py
 ```
 
 #### Troubleshooting
