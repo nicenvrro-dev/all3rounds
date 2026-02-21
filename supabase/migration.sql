@@ -14,6 +14,11 @@ CREATE TABLE IF NOT EXISTS emcees (
 );
 
 -- ============================================
+-- 1.5 Battle Status Type
+-- ============================================
+CREATE TYPE battle_status AS ENUM ('raw', 'arranged', 'reviewing', 'reviewed');
+
+-- ============================================
 -- 2. Battles
 -- ============================================
 CREATE TABLE IF NOT EXISTS battles (
@@ -23,6 +28,7 @@ CREATE TABLE IF NOT EXISTS battles (
   event_name TEXT,
   event_date DATE,
   url        TEXT GENERATED ALWAYS AS ('https://www.youtube.com/watch?v=' || youtube_id) STORED,
+  status     battle_status DEFAULT 'raw',
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

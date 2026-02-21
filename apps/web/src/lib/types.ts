@@ -16,6 +16,7 @@ export type SearchResult = {
     event_name: string | null;
     event_date: string | null;
     url: string;
+    status: BattleStatus;
   };
 };
 
@@ -25,6 +26,7 @@ export type Emcee = {
   aka: string[];
 };
 
+export type BattleStatus = "raw" | "arranged" | "reviewing" | "reviewed";
 export type Battle = {
   id: string;
   title: string;
@@ -32,4 +34,5 @@ export type Battle = {
   event_name: string | null;
   event_date: string | null;
   url: string;
+  status: BattleStatus;
 };

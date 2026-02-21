@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       round_number,
       speaker_label,
       emcee:emcees ( id, name ),
-      battle:battles ( id, title, youtube_id, event_name, event_date, url )
+      battle:battles ( id, title, youtube_id, event_name, event_date, url, status )
     `,
       { count: "exact" },
     )

@@ -18,6 +18,15 @@ import {
   Clock,
   ArrowLeft,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { StatusBadge, STATUS_CONFIG } from "@/components/StatusBadge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import BatchActionBar from "@/components/BatchActionBar";
 import BattleEditModal from "@/components/BattleEditModal";
 import type { Emcee } from "@/lib/types";
@@ -37,6 +46,8 @@ type BattleLine = {
   emcee: { id: string; name: string } | null;
 };
 
+type BattleStatus = "raw" | "arranged" | "reviewing" | "reviewed";
+
 type BattleData = {
   battle: {
     id: string;
@@ -45,6 +56,7 @@ type BattleData = {
     event_name: string | null;
     event_date: string | null;
     url: string;
+    status: BattleStatus;
   };
   participants: {
     label: string;
@@ -149,6 +161,35 @@ export default function BattlePage() {
   const canDelete = userRole === "superadmin";
   const [batchSaving, setBatchSaving] = useState(false);
   const [emcees, setEmcees] = useState<Emcee[]>([]);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  const handleStatusChange = async (newStatus: BattleStatus) => {
+    if (!canEdit) return;
+    setUpdatingStatus(true);
+    try {
+      const res = await fetch(`/api/battles/${battleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update status");
+
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              battle: { ...prev.battle, status: data.status || newStatus },
+            }
+          : null,
+      );
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Failed to update status");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
 
   // Collapsible state
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(
@@ -369,8 +410,53 @@ export default function BattlePage() {
               sizes="(max-width: 768px) 100vw, 896px"
               className="object-cover"
             />
-            {/* Scrim for legibility */}
+            {/* Scrims for legibility */}
             <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent" />
+            <div className="absolute inset-0 bg-linear-to-bl from-black/60 via-transparent to-transparent pointer-events-none" />
+
+            {/* Status Badge Over Image */}
+            <div className="absolute right-3 top-3 z-50">
+              {canEdit ? (
+                <Select
+                  disabled={updatingStatus}
+                  value={battle.status}
+                  onValueChange={(val) =>
+                    handleStatusChange(val as BattleStatus)
+                  }
+                >
+                  <SelectTrigger className="h-auto w-auto border-none bg-transparent p-0 shadow-none ring-0 focus:ring-0 [&>svg]:hidden">
+                    <SelectValue>
+                      <StatusBadge
+                        status={battle.status}
+                        noTooltip
+                        className={cn(
+                          "cursor-pointer shadow-lg backdrop-blur-xl hover:brightness-110",
+                          updatingStatus && "opacity-50",
+                        )}
+                      />
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    {(Object.keys(STATUS_CONFIG) as BattleStatus[]).map((s) => (
+                      <SelectItem key={s} value={s} className="text-xs">
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const Icon = STATUS_CONFIG[s].icon;
+                            return <Icon className="h-3.5 w-3.5" />;
+                          })()}
+                          <span>{STATUS_CONFIG[s].label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <StatusBadge
+                  status={battle.status}
+                  className="backdrop-blur-xl"
+                />
+              )}
+            </div>
 
             {/* Title on image */}
             <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-6">

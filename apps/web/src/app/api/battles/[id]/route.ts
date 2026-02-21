@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { requirePermission } from "@/lib/auth";
 
 export async function GET(
   _request: NextRequest,
@@ -11,7 +12,7 @@ export async function GET(
   // Fetch battle details
   const { data: battle, error: battleError } = await supabase
     .from("battles")
-    .select("id, title, youtube_id, event_name, event_date, url")
+    .select("id, title, youtube_id, event_name, event_date, url, status")
     .eq("id", id)
     .single();
 
@@ -54,4 +55,58 @@ export async function GET(
     participants: participants || [],
     lines: lines || [],
   });
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+
+    // 1. Check permission
+    const { error: permError } = await requirePermission("battles:edit_status");
+    if (permError) {
+      return NextResponse.json(
+        { error: permError.message },
+        { status: permError.status },
+      );
+    }
+
+    // 2. Parse body
+    const body = await request.json();
+    const { status } = body;
+
+    if (!status) {
+      return NextResponse.json(
+        { error: "Status is required" },
+        { status: 400 },
+      );
+    }
+
+    // 3. Update status using Admin Client to bypass RLS
+    const supabaseAdmin = createAdminClient();
+    const { data: updated, error } = await supabaseAdmin
+      .from("battles")
+      .update({ status })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Battle status update failed:", error);
+      return NextResponse.json(
+        { error: `Database error: ${error.message}` },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json(updated);
+  } catch (err: any) {
+    console.error("PATCH /api/battles/[id] error:", err);
+    return NextResponse.json(
+      { error: err.message || "Internal Server Error" },
+      { status: 500 },
+    );
+  }
 }

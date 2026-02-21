@@ -11,12 +11,18 @@ import {
   ChevronRight,
   Mic2,
   Search,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { StatusBadge } from "@/components/StatusBadge";
 
 // ============================================================================
 // Types
 // ============================================================================
+
+type BattleStatus = "raw" | "arranged" | "reviewing" | "reviewed";
 
 type Battle = {
   id: string;
@@ -25,6 +31,7 @@ type Battle = {
   event_name: string | null;
   event_date: string | null;
   url: string;
+  status: BattleStatus;
 };
 
 type EventGroup = {
@@ -92,6 +99,13 @@ function BattleCard({ battle }: { battle: Battle }) {
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
             className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
+          {/* Top-right scrim for badge legibility */}
+          <div className="absolute inset-0 bg-linear-to-bl from-black/40 via-transparent to-transparent pointer-events-none" />
+
+          {/* Status Badge Over Image */}
+          <div className="absolute right-2 top-2">
+            <StatusBadge status={battle.status} className="backdrop-blur-xl" />
+          </div>
         </div>
 
         {/* Info */}

@@ -6,6 +6,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "./StatusBadge";
 import { Play, Pencil, Mic2 } from "lucide-react";
 
 function formatTime(seconds: number): string {
@@ -102,7 +103,13 @@ export default function ResultCard({
                 {speaker}
               </span>
               <span className="text-border">·</span>
-              <span>{result.battle.title}</span>
+              <span className="inline-flex items-center gap-2">
+                {result.battle.title}
+                <StatusBadge
+                  status={result.battle.status}
+                  className="scale-90"
+                />
+              </span>
               {result.round_number && (
                 <>
                   <span className="text-border">·</span>

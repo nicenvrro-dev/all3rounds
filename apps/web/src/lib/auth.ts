@@ -23,6 +23,7 @@ const PERMISSIONS: Record<string, UserRole[]> = {
   "lines:delete": ["superadmin"],
   "users:manage": ["superadmin"],
   "battles:manage": ["superadmin", "admin"],
+  "battles:edit_status": ["superadmin", "admin", "editor"],
 };
 
 // ============================================================================
