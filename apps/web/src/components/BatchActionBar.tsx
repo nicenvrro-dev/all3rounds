@@ -65,21 +65,32 @@ export default function BatchActionBar({
 
   return (
     <>
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 backdrop-blur-sm shadow-lg">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
-          {/* Count */}
-          <span className="shrink-0 text-sm font-medium text-foreground">
-            {selectedCount} line{selectedCount !== 1 ? "s" : ""} selected
-          </span>
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 backdrop-blur-sm shadow-xl md:shadow-lg safe-bottom">
+        <div className="mx-auto flex max-w-3xl flex-col gap-2 p-3 md:flex-row md:items-center md:gap-3 md:px-4 md:py-3">
+          <div className="flex items-center justify-between md:justify-start md:gap-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80 md:text-sm md:font-medium md:normal-case md:text-foreground">
+              {selectedCount} selected
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClear}
+              disabled={saving}
+              className="h-7 px-2 md:hidden"
+            >
+              <X className="h-4 w-4" />
+              <span>Clear</span>
+            </Button>
+          </div>
 
-          <div className="flex flex-1 flex-wrap items-center gap-2">
+          <div className="flex flex-1 flex-wrap items-center gap-1.5 md:gap-2">
             {/* Set Round */}
             <Select
               disabled={saving}
               onValueChange={(val) => onAction("set_round", val)}
             >
-              <SelectTrigger className="h-9 w-[130px]">
-                <SelectValue placeholder="Set Round" />
+              <SelectTrigger className="h-8 flex-1 md:h-9 md:w-[130px] md:flex-none">
+                <SelectValue placeholder="Round" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Clear Round</SelectItem>
@@ -93,22 +104,14 @@ export default function BatchActionBar({
             <button
               disabled={saving}
               onClick={() => setIsEmceeModalOpen(true)}
-              className="flex cursor-pointer h-9 w-[150px] items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex cursor-pointer h-8 flex-1 md:h-9 md:w-[150px] md:flex-none items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-xs md:text-sm shadow-sm hover:bg-muted/50 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               <div className="flex items-center gap-2 truncate">
-                <User className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="truncate">Set Emcee</span>
+                <User className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground" />
+                <span className="truncate">Emcee</span>
               </div>
-              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <Search className="h-3 w-3 md:h-3.5 md:w-3.5 text-muted-foreground shrink-0" />
             </button>
-
-            <EmceeSearchModal
-              isOpen={isEmceeModalOpen}
-              onClose={() => setIsEmceeModalOpen(false)}
-              emcees={emcees}
-              selectedId=""
-              onSelect={(val) => onAction("set_emcee", val)}
-            />
 
             {/* Delete */}
             {canDelete && (
@@ -117,18 +120,32 @@ export default function BatchActionBar({
                 size="sm"
                 disabled={saving}
                 onClick={() => setShowDeleteConfirm(true)}
+                className="h-8 flex-1 md:h-9 md:flex-none"
               >
                 <Trash2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Delete</span>
+                <span>Delete</span>
               </Button>
             )}
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClear}
+              disabled={saving}
+              className="hidden h-9 md:flex"
+            >
+              <X className="h-4 w-4" />
+              <span>Cancel</span>
+            </Button>
           </div>
 
-          {/* Cancel */}
-          <Button variant="ghost" size="sm" onClick={onClear} disabled={saving}>
-            <X className="h-4 w-4" />
-            <span className="hidden sm:inline">Cancel</span>
-          </Button>
+          <EmceeSearchModal
+            isOpen={isEmceeModalOpen}
+            onClose={() => setIsEmceeModalOpen(false)}
+            emcees={emcees}
+            selectedId=""
+            onSelect={(val) => onAction("set_emcee", val)}
+          />
         </div>
       </div>
 

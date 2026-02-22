@@ -109,6 +109,7 @@ export default function BattleEditModal({
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={3}
+              className="resize-none"
             />
             <Button
               size="sm"

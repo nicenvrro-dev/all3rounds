@@ -14,6 +14,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Pencil,
   X,
@@ -209,6 +210,10 @@ export default function BattlePage() {
     new Set(),
   );
   const [collapsedTurns, setCollapsedTurns] = useState<Set<string>>(new Set());
+
+  // -- Inline Edit State --
+  const [inlineEditingId, setInlineEditingId] = useState<number | null>(null);
+  const [inlineContent, setInlineContent] = useState("");
 
   // ────────────────────────────────────────────────────────────────────────────
   // Effects & Data Fetching
@@ -476,6 +481,9 @@ export default function BattlePage() {
       setEditMode(true);
     }
   };
+  // ────────────────────────────────────────────────────────────────────────────
+  // Battle Action Handlers
+  // ────────────────────────────────────────────────────────────────────────────
 
   const handleBatchAction = async (
     action: "set_round" | "set_emcee" | "delete",
@@ -502,6 +510,73 @@ export default function BattlePage() {
       fetchBattle();
     } finally {
       setBatchSaving(false);
+    }
+  };
+
+  const startInlineEdit = (line: BattleLine) => {
+    setInlineEditingId(line.id);
+    setInlineContent(line.content);
+  };
+
+  /**
+   * Saves content for a single line (Inline Mode).
+   * Updates local state optimistically for instant feedback.
+   */
+  const handleInlineSave = async (id: number, moveToNext = false) => {
+    if (!canEdit) return;
+    const originalLine = data?.lines.find((l) => l.id === id);
+    if (!originalLine) {
+      setInlineEditingId(null);
+      return;
+    }
+
+    if (inlineContent === originalLine.content) {
+      setInlineEditingId(null);
+      if (moveToNext) focusNextLine(id);
+      return;
+    }
+
+    // -- Optimistic Update --
+    setData((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        lines: prev.lines.map((l) =>
+          l.id === id ? { ...l, content: inlineContent } : l,
+        ),
+      };
+    });
+
+    try {
+      const res = await fetch("/api/lines", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lineId: id,
+          field: "content",
+          value: inlineContent,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+
+      if (moveToNext) focusNextLine(id);
+    } catch (err) {
+      console.error("Inline save error:", err);
+      fetchBattle(); // Sync back on error
+    } finally {
+      setInlineEditingId(null);
+    }
+  };
+
+  const focusNextLine = (currentId: number) => {
+    const currentIndex = data?.lines.findIndex((l) => l.id === currentId);
+    if (
+      currentIndex !== undefined &&
+      currentIndex !== -1 &&
+      data?.lines[currentIndex + 1]
+    ) {
+      const nextLine = data.lines[currentIndex + 1];
+      setTimeout(() => startInlineEdit(nextLine), 10);
     }
   };
 
@@ -722,7 +797,7 @@ export default function BattlePage() {
 
           {/* ── Right Column: Transcript (Scrollable) ── */}
           <div className="flex flex-1 flex-col overflow-hidden pb-4 lg:col-span-5 lg:h-full lg:pb-6 xl:col-span-4">
-            <div className="mb-4 flex items-center justify-between px-1">
+            <div className="mb-2 md:mb-4 flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
                 <div className="h-1.5 w-1.5 rounded-full bg-primary" />
                 <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-foreground/70">
@@ -765,10 +840,28 @@ export default function BattlePage() {
             </div>
 
             {editMode && (
-              <div className="px-5 py-1.5 border-b border-border/5 bg-muted/20 animate-in fade-in duration-500">
-                <p className="text-[9px] font-medium tracking-widest text-muted-foreground/50 text-center uppercase">
-                  CLICK + BETWEEN LINES TO INSERT
-                </p>
+              <div className="px-3 py-1.5 md:px-5 md:py-2 border-b border-border/10 bg-primary/5 animate-in slide-in-from-top-1 duration-500">
+                <div className="flex flex-col gap-1 items-center">
+                  <p className="text-[10px] font-bold tracking-widest text-primary/80 uppercase">
+                    Editing Mode
+                  </p>
+                  <p className="text-[9px] font-medium tracking-wider text-muted-foreground/60 uppercase text-center">
+                    <span className="md:hidden">
+                      Tap text to edit • Saves automatically
+                    </span>
+                    <span className="hidden md:inline">
+                      Click text to edit •{" "}
+                      <span className="text-foreground/70 font-bold border rounded px-1 py-0.5 text-[7px] border-border bg-background shadow-xs">
+                        ENTER
+                      </span>{" "}
+                      SAVE & NEXT •{" "}
+                      <span className="text-foreground/70 font-bold border rounded px-1 py-0.5 text-[7px] border-border bg-background shadow-xs">
+                        ESC
+                      </span>{" "}
+                      CANCEL
+                    </span>
+                  </p>
+                </div>
               </div>
             )}
 
@@ -919,14 +1012,54 @@ export default function BattlePage() {
                                                 }
                                                 className="mt-1 h-3.5 w-3.5 shrink-0"
                                               />
-                                              <span
-                                                className="flex-1 cursor-pointer text-[13px] leading-relaxed text-foreground"
-                                                onClick={() =>
-                                                  toggleSelect(line.id)
-                                                }
-                                              >
-                                                {line.content}
-                                              </span>
+                                              {inlineEditingId === line.id ? (
+                                                <Textarea
+                                                  autoFocus
+                                                  value={inlineContent}
+                                                  onChange={(e) =>
+                                                    setInlineContent(
+                                                      e.target.value,
+                                                    )
+                                                  }
+                                                  onFocus={(e) => {
+                                                    const length =
+                                                      e.target.value.length;
+                                                    e.target.setSelectionRange(
+                                                      length,
+                                                      length,
+                                                    );
+                                                  }}
+                                                  onBlur={() =>
+                                                    handleInlineSave(line.id)
+                                                  }
+                                                  onKeyDown={(e) => {
+                                                    if (
+                                                      e.key === "Enter" &&
+                                                      !e.shiftKey
+                                                    ) {
+                                                      e.preventDefault();
+                                                      handleInlineSave(
+                                                        line.id,
+                                                        true,
+                                                      );
+                                                    } else if (
+                                                      e.key === "Escape"
+                                                    ) {
+                                                      setInlineEditingId(null);
+                                                    }
+                                                  }}
+                                                  className="resize-none min-h-0 flex-1 border-none bg-transparent p-0 text-base md:text-[13px] leading-relaxed shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                                                />
+                                              ) : (
+                                                <span
+                                                  className="flex-1 cursor-text text-[13px] leading-relaxed text-foreground transition-colors hover:text-primary/80"
+                                                  onClick={() =>
+                                                    startInlineEdit(line)
+                                                  }
+                                                >
+                                                  {line.content}
+                                                </span>
+                                              )}
                                               <Button
                                                 variant="ghost"
                                                 size="icon"
