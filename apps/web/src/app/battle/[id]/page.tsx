@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Link from "next/link";
@@ -141,126 +141,41 @@ function getSpeakerColor(speaker: string, index: number) {
 }
 
 // ============================================================================
-// Component
+// Main Component
 // ============================================================================
 
 export default function BattlePage() {
+  // -- Hooks & Params --
   const params = useParams();
   const searchParams = useSearchParams();
   const battleId = params.id as string;
 
+  // -- Data State --
   const [data, setData] = useState<BattleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // YouTube Player State
+  // -- Player & Scroll State --
   const [player, setPlayer] = useState<any>(null);
   const [activeTime, setActiveTime] = useState<number>(0);
   const playerRef = useRef<HTMLDivElement>(null);
+  const transcriptContainerRef = useRef<HTMLDivElement>(null);
+  const scrollAnimationFrameRef = useRef<number | null>(null);
   const ytPlayerInstance = useRef<any>(null);
 
-  // Initial seek from URL
+  // -- Active Line Logic --
+  const activeLineId = useMemo(() => {
+    return data?.lines.find(
+      (l) =>
+        activeTime >= l.start_time &&
+        activeTime < (l.end_time || l.start_time + 1),
+    )?.id;
+  }, [activeTime, data?.lines]);
+
+  // -- Navigation State --
   const [hasInitialSeeked, setHasInitialSeeked] = useState(false);
 
-  useEffect(() => {
-    if (!data?.battle.youtube_id) return;
-
-    // 1. Load the YouTube IFrame API script manually if not already present
-    if (!(window as any).YT) {
-      const tag = document.createElement("script");
-      tag.id = "youtube-iframe-api";
-      tag.src = "https://www.youtube.com/iframe_api";
-      const firstScriptTag = document.getElementsByTagName("script")[0];
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-    }
-
-    // 2. Define/hijack the global callback
-    const previousCallback = (window as any).onYouTubeIframeAPIReady;
-    (window as any).onYouTubeIframeAPIReady = () => {
-      if (previousCallback) previousCallback();
-      initPlayer();
-    };
-
-    // 3. Fallback: if already loaded, init immediately
-    if ((window as any).YT && (window as any).YT.Player) {
-      initPlayer();
-    }
-
-    function initPlayer() {
-      // Cleanup any existing instance on the same element if needed
-      if (ytPlayerInstance.current) {
-        try {
-          ytPlayerInstance.current.destroy();
-        } catch (e) {}
-      }
-
-      ytPlayerInstance.current = new (window as any).YT.Player(
-        "youtube-player",
-        {
-          videoId: data?.battle.youtube_id,
-          playerVars: {
-            playsinline: 1,
-            modestbranding: 1,
-            rel: 0,
-            origin: window.location.origin,
-          },
-          events: {
-            onReady: (event: any) => {
-              setPlayer(event.target);
-
-              // Check for initial timestamp in URL
-              const t = searchParams.get("t");
-              if (t && !hasInitialSeeked) {
-                const seconds = parseInt(t);
-                if (!isNaN(seconds)) {
-                  event.target.seekTo(seconds, true);
-                  event.target.playVideo();
-                  setHasInitialSeeked(true);
-                }
-              }
-            },
-            onStateChange: (event: any) => {
-              // Can handle play/pause if needed
-            },
-          },
-        },
-      );
-    }
-
-    return () => {
-      // We don't necessarily want to null out onYouTubeIframeAPIReady
-      // as other components might use it, but we can cleanup the instance
-    };
-  }, [data?.battle.youtube_id, searchParams, hasInitialSeeked]);
-
-  // Track player time for highlighting
-  useEffect(() => {
-    if (!player) return;
-    const interval = setInterval(() => {
-      if (player && typeof player.getCurrentTime === "function") {
-        setActiveTime(player.getCurrentTime());
-      }
-    }, 250); // High frequency for smooth highlighting
-    return () => clearInterval(interval);
-  }, [player]);
-
-  const handleSeek = (seconds: number) => {
-    if (player && typeof player.seekTo === "function") {
-      player.seekTo(seconds, true);
-      player.playVideo();
-      // Smoothly scroll the player into view if it's off screen
-      playerRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    } else {
-      // Fallback if player isn't ready
-      const url = `https://www.youtube.com/watch?v=${data?.battle.youtube_id}&t=${Math.floor(seconds)}s`;
-      window.open(url, "_blank");
-    }
-  };
-
-  // Edit mode state
+  // -- Edit Mode State --
   const [editMode, setEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [editingLine, setEditingLine] = useState<BattleLine | null>(null);
@@ -272,57 +187,15 @@ export default function BattlePage() {
   const [emcees, setEmcees] = useState<Emcee[]>([]);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
-  const handleStatusChange = async (newStatus: BattleStatus) => {
-    if (!canEdit) return;
-    setUpdatingStatus(true);
-    try {
-      const res = await fetch(`/api/battles/${battleId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update status");
-
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              battle: { ...prev.battle, status: data.status || newStatus },
-            }
-          : null,
-      );
-    } catch (err: any) {
-      console.error(err);
-      alert(err.message || "Failed to update status");
-    } finally {
-      setUpdatingStatus(false);
-    }
-  };
-
-  // Collapsible state
+  // -- Collapsible UI State --
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(
     new Set(),
   );
   const [collapsedTurns, setCollapsedTurns] = useState<Set<string>>(new Set());
 
-  const toggleRoundCollapse = (roundIndex: number) => {
-    setCollapsedRounds((prev) => {
-      const next = new Set(prev);
-      if (next.has(roundIndex)) next.delete(roundIndex);
-      else next.add(roundIndex);
-      return next;
-    });
-  };
-
-  const toggleTurnCollapse = (turnKey: string) => {
-    setCollapsedTurns((prev) => {
-      const next = new Set(prev);
-      if (next.has(turnKey)) next.delete(turnKey);
-      else next.add(turnKey);
-      return next;
-    });
-  };
+  // ────────────────────────────────────────────────────────────────────────────
+  // Effects & Data Fetching
+  // ────────────────────────────────────────────────────────────────────────────
 
   const fetchBattle = useCallback(() => {
     fetch(`/api/battles/${battleId}`)
@@ -356,6 +229,200 @@ export default function BattlePage() {
         .catch(() => {});
     }
   }, [editMode, emcees.length]);
+
+  // -- YouTube IFrame API Initialization --
+  useEffect(() => {
+    if (!data?.battle.youtube_id) return;
+
+    if (!(window as any).YT) {
+      const tag = document.createElement("script");
+      tag.id = "youtube-iframe-api";
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName("script")[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+
+    const previousCallback = (window as any).onYouTubeIframeAPIReady;
+    (window as any).onYouTubeIframeAPIReady = () => {
+      if (previousCallback) previousCallback();
+      initPlayer();
+    };
+
+    if ((window as any).YT && (window as any).YT.Player) {
+      initPlayer();
+    }
+
+    function initPlayer() {
+      if (ytPlayerInstance.current) {
+        try {
+          ytPlayerInstance.current.destroy();
+        } catch (e) {}
+      }
+
+      ytPlayerInstance.current = new (window as any).YT.Player(
+        "youtube-player",
+        {
+          videoId: data?.battle.youtube_id,
+          playerVars: {
+            playsinline: 1,
+            modestbranding: 1,
+            rel: 0,
+            origin: typeof window !== "undefined" ? window.location.origin : "",
+          },
+          events: {
+            onReady: (event: any) => {
+              setPlayer(event.target);
+              const t = searchParams.get("t");
+              if (t && !hasInitialSeeked) {
+                const seconds = parseInt(t);
+                if (!isNaN(seconds)) {
+                  event.target.seekTo(seconds, true);
+                  event.target.playVideo();
+                  setHasInitialSeeked(true);
+                }
+              }
+            },
+          },
+        },
+      );
+    }
+  }, [data?.battle.youtube_id, searchParams, hasInitialSeeked]);
+
+  // -- Player Playback Sync --
+  useEffect(() => {
+    if (!player) return;
+    const interval = setInterval(() => {
+      if (player && typeof player.getCurrentTime === "function") {
+        setActiveTime(player.getCurrentTime());
+      }
+    }, 100); // 10Hz for tighter sync
+    return () => clearInterval(interval);
+  }, [player]);
+
+  // -- Spotify-Style Auto-Scroll --
+  useEffect(() => {
+    if (!transcriptContainerRef.current || editMode || !activeLineId) return;
+
+    const container = transcriptContainerRef.current;
+    const activeEl = container.querySelector(
+      `[data-line-id="${activeLineId}"]`,
+    ) as HTMLElement;
+
+    if (activeEl) {
+      const containerRect = container.getBoundingClientRect();
+      const elRect = activeEl.getBoundingClientRect();
+      const containerMiddle = containerRect.top + containerRect.height / 2;
+
+      // Only scroll if active line has dropped below the midpoint
+      if (elRect.top > containerMiddle) {
+        // Cancel any pending animation to prevent "jaggery" fighting
+        if (scrollAnimationFrameRef.current) {
+          cancelAnimationFrame(scrollAnimationFrameRef.current);
+        }
+
+        const start = container.scrollTop;
+        const targetScrollTop =
+          start +
+          (elRect.top - containerRect.top) -
+          containerRect.height / 2 +
+          elRect.height / 2;
+
+        const change = targetScrollTop - start;
+        const duration = 700; // Optimal duration for weighted feel
+        let startTime: number | null = null;
+
+        const animateScroll = (timestamp: number) => {
+          if (!startTime) startTime = timestamp;
+          const progress = timestamp - startTime;
+          const percentage = Math.min(progress / duration, 1);
+
+          // Smoother Ease-Out-Quart animation
+          const easing = 1 - Math.pow(1 - percentage, 4);
+
+          container.scrollTop = start + change * easing;
+
+          if (progress < duration) {
+            scrollAnimationFrameRef.current =
+              requestAnimationFrame(animateScroll);
+          } else {
+            scrollAnimationFrameRef.current = null;
+          }
+        };
+
+        scrollAnimationFrameRef.current = requestAnimationFrame(animateScroll);
+      }
+    }
+
+    return () => {
+      if (scrollAnimationFrameRef.current) {
+        cancelAnimationFrame(scrollAnimationFrameRef.current);
+      }
+    };
+  }, [activeLineId, editMode]);
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Event Handlers
+  // ────────────────────────────────────────────────────────────────────────────
+
+  const handleSeek = (seconds: number) => {
+    if (player && typeof player.seekTo === "function") {
+      player.seekTo(seconds, true);
+      player.playVideo();
+      playerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    } else {
+      const url = `https://www.youtube.com/watch?v=${data?.battle.youtube_id}&t=${Math.floor(seconds)}s`;
+      window.open(url, "_blank");
+    }
+  };
+
+  const handleStatusChange = async (newStatus: BattleStatus) => {
+    if (!canEdit) return;
+    setUpdatingStatus(true);
+    try {
+      const res = await fetch(`/api/battles/${battleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || "Failed to update status");
+
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              battle: { ...prev.battle, status: resData.status || newStatus },
+            }
+          : null,
+      );
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Failed to update status");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const toggleRoundCollapse = (roundIndex: number) => {
+    setCollapsedRounds((prev) => {
+      const next = new Set(prev);
+      if (next.has(roundIndex)) next.delete(roundIndex);
+      else next.add(roundIndex);
+      return next;
+    });
+  };
+
+  const toggleTurnCollapse = (turnKey: string) => {
+    setCollapsedTurns((prev) => {
+      const next = new Set(prev);
+      if (next.has(turnKey)) next.delete(turnKey);
+      else next.add(turnKey);
+      return next;
+    });
+  };
 
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) => {
@@ -463,6 +530,10 @@ export default function BattlePage() {
 
   const { battle, lines } = data;
 
+  // ────────────────────────────────────────────────────────────────────────────
+  // Render Logic
+  // ────────────────────────────────────────────────────────────────────────────
+
   // Build speaker color map
   const speakerSet = [
     ...new Set(lines.map((l) => l.emcee?.name || l.speaker_label || "Unknown")),
@@ -492,6 +563,10 @@ export default function BattlePage() {
       roundGroups[roundGroups.length - 1].turns.push(currentTurn);
     }
   });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Render Layout
+  // ────────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-background">
@@ -650,7 +725,10 @@ export default function BattlePage() {
 
           {/* ── Right Column: Transcript (Scrollable) ── */}
           <div className="flex flex-1 flex-col overflow-hidden pb-4 lg:col-span-5 lg:h-full lg:pb-6 xl:col-span-4">
-            <div className="flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:var(--muted)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted">
+            <div
+              ref={transcriptContainerRef}
+              className="flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:var(--muted)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted"
+            >
               <div className="space-y-1">
                 {roundGroups.map((group, gi) => {
                   const isRoundCollapsed = collapsedRounds.has(gi);
@@ -788,14 +866,15 @@ export default function BattlePage() {
                                       return (
                                         <button
                                           key={line.id}
+                                          data-line-id={line.id}
                                           onClick={() =>
                                             handleSeek(line.start_time)
                                           }
                                           className={cn(
-                                            "group/line flex w-full items-baseline gap-3 rounded-md px-1.5 py-0.5 text-left text-[13px] transition-all duration-300",
+                                            "group/line flex w-full items-baseline gap-3 rounded-md px-1.5 py-0.5 text-left text-[13px] transition-all duration-300 ease-in-out",
                                             isPlaying
-                                              ? "bg-primary/8 text-foreground"
-                                              : "hover:bg-muted/30 text-foreground/80",
+                                              ? "bg-primary/10 border-l-2 border-primary rounded-l-none font-semibold"
+                                              : "hover:bg-muted/30 text-foreground/80 border-l-2 border-transparent",
                                           )}
                                         >
                                           <div className="flex min-w-[32px] items-center gap-1 shrink-0">
@@ -811,7 +890,7 @@ export default function BattlePage() {
                                             className={cn(
                                               "leading-relaxed transition-colors",
                                               isPlaying
-                                                ? "font-medium text-foreground"
+                                                ? "text-foreground"
                                                 : "group-hover/line:text-foreground",
                                             )}
                                           >
