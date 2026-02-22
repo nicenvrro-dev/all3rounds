@@ -60,7 +60,6 @@ export default function ResultCard({
 }) {
   const [showEdit, setShowEdit] = useState(false);
 
-  const ytLink = `https://www.youtube.com/watch?v=${result.battle.youtube_id}&t=${Math.floor(result.start_time)}s`;
   const speaker = result.emcee?.name || result.speaker_label || "Unknown";
 
   return (
@@ -137,15 +136,15 @@ export default function ResultCard({
               <Button
                 variant="default"
                 size="sm"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  window.open(ytLink, "_blank", "noopener,noreferrer");
-                }}
+                asChild
                 className="h-7 gap-1.5 bg-foreground px-3 text-xs font-medium text-background transition-opacity hover:opacity-80"
               >
-                <Play className="h-3 w-3" />
-                Play at {formatTime(result.start_time)}
+                <Link
+                  href={`/battle/${result.battle.id}?t=${Math.floor(result.start_time)}`}
+                >
+                  <Play className="h-3 w-3" />
+                  Play at {formatTime(result.start_time)}
+                </Link>
               </Button>
 
               {isLoggedIn && (

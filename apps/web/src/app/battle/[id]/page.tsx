@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Link from "next/link";
 import Image from "next/image";
@@ -17,6 +17,7 @@ import {
   Mic2,
   Clock,
   ArrowLeft,
+  Play,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusBadge, STATUS_CONFIG } from "@/components/StatusBadge";
@@ -145,11 +146,119 @@ function getSpeakerColor(speaker: string, index: number) {
 
 export default function BattlePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const battleId = params.id as string;
 
   const [data, setData] = useState<BattleData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // YouTube Player State
+  const [player, setPlayer] = useState<any>(null);
+  const [activeTime, setActiveTime] = useState<number>(0);
+  const playerRef = useRef<HTMLDivElement>(null);
+  const ytPlayerInstance = useRef<any>(null);
+
+  // Initial seek from URL
+  const [hasInitialSeeked, setHasInitialSeeked] = useState(false);
+
+  useEffect(() => {
+    if (!data?.battle.youtube_id) return;
+
+    // 1. Load the YouTube IFrame API script manually if not already present
+    if (!(window as any).YT) {
+      const tag = document.createElement("script");
+      tag.id = "youtube-iframe-api";
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName("script")[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+
+    // 2. Define/hijack the global callback
+    const previousCallback = (window as any).onYouTubeIframeAPIReady;
+    (window as any).onYouTubeIframeAPIReady = () => {
+      if (previousCallback) previousCallback();
+      initPlayer();
+    };
+
+    // 3. Fallback: if already loaded, init immediately
+    if ((window as any).YT && (window as any).YT.Player) {
+      initPlayer();
+    }
+
+    function initPlayer() {
+      // Cleanup any existing instance on the same element if needed
+      if (ytPlayerInstance.current) {
+        try {
+          ytPlayerInstance.current.destroy();
+        } catch (e) {}
+      }
+
+      ytPlayerInstance.current = new (window as any).YT.Player(
+        "youtube-player",
+        {
+          videoId: data?.battle.youtube_id,
+          playerVars: {
+            playsinline: 1,
+            modestbranding: 1,
+            rel: 0,
+            origin: window.location.origin,
+          },
+          events: {
+            onReady: (event: any) => {
+              setPlayer(event.target);
+
+              // Check for initial timestamp in URL
+              const t = searchParams.get("t");
+              if (t && !hasInitialSeeked) {
+                const seconds = parseInt(t);
+                if (!isNaN(seconds)) {
+                  event.target.seekTo(seconds, true);
+                  event.target.playVideo();
+                  setHasInitialSeeked(true);
+                }
+              }
+            },
+            onStateChange: (event: any) => {
+              // Can handle play/pause if needed
+            },
+          },
+        },
+      );
+    }
+
+    return () => {
+      // We don't necessarily want to null out onYouTubeIframeAPIReady
+      // as other components might use it, but we can cleanup the instance
+    };
+  }, [data?.battle.youtube_id, searchParams, hasInitialSeeked]);
+
+  // Track player time for highlighting
+  useEffect(() => {
+    if (!player) return;
+    const interval = setInterval(() => {
+      if (player && typeof player.getCurrentTime === "function") {
+        setActiveTime(player.getCurrentTime());
+      }
+    }, 250); // High frequency for smooth highlighting
+    return () => clearInterval(interval);
+  }, [player]);
+
+  const handleSeek = (seconds: number) => {
+    if (player && typeof player.seekTo === "function") {
+      player.seekTo(seconds, true);
+      player.playVideo();
+      // Smoothly scroll the player into view if it's off screen
+      playerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    } else {
+      // Fallback if player isn't ready
+      const url = `https://www.youtube.com/watch?v=${data?.battle.youtube_id}&t=${Math.floor(seconds)}s`;
+      window.open(url, "_blank");
+    }
+  };
 
   // Edit mode state
   const [editMode, setEditMode] = useState(false);
@@ -388,300 +497,352 @@ export default function BattlePage() {
     <div className="min-h-screen bg-background">
       <Header />
 
-      <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-        {/* Back link */}
-        <Link
-          href="/battles"
-          className="mb-4 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-3 w-3" />
-          All battles
-        </Link>
-
-        {/* ── Hero Card ── */}
-        <div className="mb-8 overflow-hidden rounded-xl border border-border bg-card">
-          {/* Thumbnail */}
-          <div className="relative aspect-3/1 w-full overflow-hidden bg-muted">
-            <Image
-              src={`https://img.youtube.com/vi/${battle.youtube_id}/maxresdefault.jpg`}
-              alt={battle.title}
-              fill
-              priority
-              sizes="(max-width: 768px) 100vw, 896px"
-              className="object-cover"
-            />
-            {/* Scrims for legibility */}
-            <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent" />
-            <div className="absolute inset-0 bg-linear-to-bl from-black/60 via-transparent to-transparent pointer-events-none" />
-
-            {/* Status Badge Over Image */}
-            <div className="absolute right-3 top-3 z-50">
-              {canEdit ? (
-                <Select
-                  disabled={updatingStatus}
-                  value={battle.status}
-                  onValueChange={(val) =>
-                    handleStatusChange(val as BattleStatus)
-                  }
-                >
-                  <SelectTrigger className="h-auto w-auto border-none bg-transparent p-0 shadow-none ring-0 focus:ring-0 [&>svg]:hidden">
-                    <SelectValue>
-                      <StatusBadge
-                        status={battle.status}
-                        noTooltip
-                        className={cn(
-                          "cursor-pointer shadow-lg backdrop-blur-xl hover:brightness-110",
-                          updatingStatus && "opacity-50",
-                        )}
-                      />
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent align="end">
-                    {(Object.keys(STATUS_CONFIG) as BattleStatus[]).map((s) => (
-                      <SelectItem key={s} value={s} className="text-xs">
-                        <div className="flex items-center gap-2">
-                          {(() => {
-                            const Icon = STATUS_CONFIG[s].icon;
-                            return <Icon className="h-3.5 w-3.5" />;
-                          })()}
-                          <span>{STATUS_CONFIG[s].label}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <StatusBadge
-                  status={battle.status}
-                  className="backdrop-blur-xl"
-                />
-              )}
-            </div>
-
-            {/* Title on image */}
-            <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-6">
-              <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                {battle.title}
-              </h1>
-            </div>
-          </div>
-
-          {/* Meta bar */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border px-5 py-3 sm:px-6">
-            {battle.event_name && (
-              <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                <Mic2 className="h-3.5 w-3.5 text-muted-foreground" />
-                {battle.event_name}
-              </span>
-            )}
-            {battle.event_date && (
-              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5" />
-                {formatDate(battle.event_date)}
-              </span>
-            )}
-            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" />
-              {lines.length} lines
-            </span>
-
-            <div className="ml-auto flex items-center gap-2">
-              <a
-                href={battle.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+      <main className="mx-auto flex h-[calc(100vh-4rem)] max-w-7xl flex-col overflow-hidden px-4 sm:px-6">
+        {/* ── Two-Column Layout ── */}
+        <div className="flex h-full min-h-0 flex-col gap-6 pt-4 lg:grid lg:grid-cols-12 lg:gap-8 lg:pt-6">
+          {/* Left Column: Video (Sticky/Docked) */}
+          <div className="z-30 lg:col-span-7 xl:col-span-8">
+            <Link
+              href="/battles"
+              className="mb-3 ml-1 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 transition-colors hover:text-foreground sm:ml-0 lg:mb-4"
+            >
+              <ArrowLeft className="h-3 w-3" />
+              All battles
+            </Link>
+            <div className="overflow-hidden border-b border-border bg-card/95 shadow-sm backdrop-blur-sm transition-all duration-500 -mx-4 sm:mx-0 sm:rounded-xl sm:border sm:shadow-lg sm:hover:shadow-xl">
+              {/* Player Container */}
+              <div
+                ref={playerRef}
+                className="relative aspect-video w-full overflow-hidden bg-black"
               >
-                <ExternalLink className="h-3 w-3" />
-                YouTube
-              </a>
-              {canEdit && (
-                <Button
-                  variant={editMode ? "default" : "outline"}
-                  size="sm"
-                  onClick={handleToggleEditMode}
-                  className="h-8 text-xs"
-                >
-                  {editMode ? (
-                    <>
-                      <X className="mr-1 h-3 w-3" />
-                      Exit Edit
-                    </>
-                  ) : (
-                    <>
-                      <Pencil className="mr-1 h-3 w-3" />
-                      Edit
-                    </>
-                  )}
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
+                <div
+                  id="youtube-player"
+                  className="absolute inset-0 h-full w-full"
+                />
 
-        {/* ── Transcript ── */}
-        <div className="space-y-1">
-          {roundGroups.map((group, gi) => {
-            const isRoundCollapsed = collapsedRounds.has(gi);
-            const roundLabel = group.round
-              ? `Round ${group.round}`
-              : "Unassigned";
-            const lineCount = group.turns.reduce(
-              (sum, t) => sum + t.lines.length,
-              0,
-            );
-
-            return (
-              <div key={gi}>
-                {/* Round header */}
-                <Button
-                  variant="ghost"
-                  onClick={() => toggleRoundCollapse(gi)}
-                  className="h-auto w-full justify-start gap-2 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
-                >
-                  {isRoundCollapsed ? (
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  )}
-                  <span className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                    {roundLabel}
-                  </span>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                    {lineCount}
-                  </span>
-                </Button>
-
-                {/* Round children */}
-                {!isRoundCollapsed && (
-                  <div className="ml-3 border-l-2 border-border/60 pl-4 space-y-0.5">
-                    {group.turns.map((turn, ti) => {
-                      const turnKey = `${gi}-${ti}`;
-                      const isTurnCollapsed = collapsedTurns.has(turnKey);
-                      const speakerColor = getSpeakerColor(
-                        turn.speaker,
-                        speakerSet.indexOf(turn.speaker),
-                      );
-                      const turnAllSelected =
-                        editMode &&
-                        turn.lines.every((l) => selectedIds.has(l.id));
-
-                      return (
-                        <div key={ti}>
-                          {/* Speaker header */}
-                          <div className="flex items-center gap-1.5">
-                            <Button
-                              variant="ghost"
-                              onClick={() => toggleTurnCollapse(turnKey)}
-                              className={`h-auto justify-start gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-muted/50 ${speakerColor.text}`}
-                            >
-                              {isTurnCollapsed ? (
-                                <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" />
-                              ) : (
-                                <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
-                              )}
-                              <span
-                                className={`h-2 w-2 rounded-full ${speakerColor.dot}`}
-                              />
-                              <span className="font-medium">
-                                {turn.speaker}
-                              </span>
-                              <span className="text-xs opacity-50">
-                                {turn.lines.length}
-                              </span>
-                            </Button>
-
-                            {editMode && (
-                              <Checkbox
-                                checked={turnAllSelected}
-                                className="ml-1"
-                                onCheckedChange={() =>
-                                  toggleSelectTurn(turn.lines)
-                                }
-                              />
-                            )}
-                          </div>
-
-                          {/* Lines */}
-                          {!isTurnCollapsed && (
-                            <div className="ml-3 border-l border-border/40 pl-4 py-0.5">
-                              {turn.lines.map((line) => {
-                                const ytLink = `https://www.youtube.com/watch?v=${battle.youtube_id}&t=${Math.floor(line.start_time)}s`;
-                                const isSelected = selectedIds.has(line.id);
-
-                                if (editMode) {
-                                  return (
-                                    <div
-                                      key={line.id}
-                                      className={`group/line flex items-start gap-2 rounded-md px-2 py-1 transition-colors ${
-                                        isSelected
-                                          ? "bg-primary/10"
-                                          : "hover:bg-muted/40"
-                                      }`}
-                                    >
-                                      <Checkbox
-                                        checked={isSelected}
-                                        onCheckedChange={() =>
-                                          toggleSelect(line.id)
-                                        }
-                                        className="mt-1 shrink-0"
-                                      />
-                                      <span
-                                        className="flex-1 cursor-pointer text-sm leading-relaxed text-foreground"
-                                        onClick={() => toggleSelect(line.id)}
-                                      >
-                                        {line.content}
-                                      </span>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => setEditingLine(line)}
-                                        className="h-6 w-6 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover/line:opacity-100 focus:opacity-100"
-                                        title="Edit this line"
-                                      >
-                                        <Pencil className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  );
-                                }
-
-                                return (
-                                  <a
-                                    key={line.id}
-                                    href={ytLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="group/line flex items-baseline gap-3 rounded-md px-2 py-1 text-sm transition-colors hover:bg-muted/40"
-                                  >
-                                    <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground/50 transition-colors group-hover/line:text-muted-foreground">
-                                      {formatTime(line.start_time)}
-                                    </span>
-                                    <span className="leading-relaxed text-foreground/90 transition-colors group-hover/line:text-foreground">
-                                      {line.content}
-                                    </span>
-                                  </a>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                {/* Loading state / Placeholder when no player */}
+                {!player && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                    <Image
+                      src={`https://img.youtube.com/vi/${battle.youtube_id}/maxresdefault.jpg`}
+                      alt={battle.title}
+                      fill
+                      priority
+                      sizes="(max-width: 768px) 100vw, 896px"
+                      className="object-cover opacity-50 grayscale"
+                    />
+                    <div className="z-10 flex flex-col items-center gap-3">
+                      <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Loading video...
+                      </p>
+                    </div>
                   </div>
                 )}
+
+                {/* Status Badge Over Video (smaller, less intrusive) */}
+                <div className="absolute right-3 top-3 z-30">
+                  {canEdit ? (
+                    <Select
+                      disabled={updatingStatus}
+                      value={battle.status}
+                      onValueChange={(val) =>
+                        handleStatusChange(val as BattleStatus)
+                      }
+                    >
+                      <SelectTrigger className="h-auto w-auto border-none bg-transparent p-0 shadow-none ring-0 focus:ring-0 [&>svg]:hidden">
+                        <SelectValue>
+                          <StatusBadge
+                            status={battle.status}
+                            noTooltip
+                            className={cn(
+                              "cursor-pointer shadow-lg backdrop-blur-md hover:brightness-110",
+                              updatingStatus && "opacity-50",
+                            )}
+                          />
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent align="end">
+                        {(Object.keys(STATUS_CONFIG) as BattleStatus[]).map(
+                          (s) => (
+                            <SelectItem key={s} value={s} className="text-xs">
+                              <div className="flex items-center gap-2">
+                                {(() => {
+                                  const Icon = STATUS_CONFIG[s].icon;
+                                  return <Icon className="h-3.5 w-3.5" />;
+                                })()}
+                                <span>{STATUS_CONFIG[s].label}</span>
+                              </div>
+                            </SelectItem>
+                          ),
+                        )}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <StatusBadge
+                      status={battle.status}
+                      className="backdrop-blur-md"
+                    />
+                  )}
+                </div>
               </div>
-            );
-          })}
-        </div>
 
-        {/* Footer */}
-        <div className="mt-16 border-t border-border pt-6 text-center">
-          <p className="text-xs text-muted-foreground">
-            {lines.length} lines transcribed • Community edits welcome
-          </p>
-        </div>
+              {/* Meta bar */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border px-5 py-3 sm:px-6">
+                <div className="flex flex-col">
+                  <h1 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">
+                    {battle.title}
+                  </h1>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+                    {battle.event_name && (
+                      <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                        <Mic2 className="h-3 w-3 text-muted-foreground" />
+                        {battle.event_name}
+                      </span>
+                    )}
+                    {battle.event_date && (
+                      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        {formatDate(battle.event_date)}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      {lines.length} lines
+                    </span>
+                  </div>
+                </div>
 
-        {editMode && selectedIds.size > 0 && <div className="h-20" />}
+                <div className="ml-auto flex items-center gap-2">
+                  <a
+                    href={battle.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Original
+                  </a>
+                  {canEdit && (
+                    <Button
+                      variant={editMode ? "default" : "outline"}
+                      size="sm"
+                      onClick={handleToggleEditMode}
+                      className="h-8 text-xs underline-none"
+                    >
+                      {editMode ? (
+                        <>
+                          <X className="mr-1 h-3 w-3" />
+                          Exit Edit
+                        </>
+                      ) : (
+                        <>
+                          <Pencil className="mr-1 h-3 w-3" />
+                          Edit
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Right Column: Transcript (Scrollable) ── */}
+          <div className="flex flex-1 flex-col overflow-hidden pb-4 lg:col-span-5 lg:h-full lg:pb-6 xl:col-span-4">
+            <div className="flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:var(--muted)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted">
+              <div className="space-y-1">
+                {roundGroups.map((group, gi) => {
+                  const isRoundCollapsed = collapsedRounds.has(gi);
+                  const roundLabel = group.round
+                    ? `Round ${group.round}`
+                    : "Unassigned";
+                  const lineCount = group.turns.reduce(
+                    (sum, t) => sum + t.lines.length,
+                    0,
+                  );
+
+                  return (
+                    <div key={gi}>
+                      {/* Round header (Sticky within scroll area) */}
+                      <div className="sticky top-0 z-20 bg-background/95 py-1 backdrop-blur-sm">
+                        <Button
+                          variant="ghost"
+                          onClick={() => toggleRoundCollapse(gi)}
+                          className="h-auto w-full justify-start gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted/50"
+                        >
+                          {isRoundCollapsed ? (
+                            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          )}
+                          <span className="text-xs font-bold uppercase tracking-widest text-foreground">
+                            {roundLabel}
+                          </span>
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            {lineCount}
+                          </span>
+                        </Button>
+                      </div>
+
+                      {/* Round children */}
+                      {!isRoundCollapsed && (
+                        <div className="ml-2 border-l-2 border-border/40 pl-3 space-y-0.5">
+                          {group.turns.map((turn, ti) => {
+                            const turnKey = `${gi}-${ti}`;
+                            const isTurnCollapsed = collapsedTurns.has(turnKey);
+                            const speakerColor = getSpeakerColor(
+                              turn.speaker,
+                              speakerSet.indexOf(turn.speaker),
+                            );
+                            const turnAllSelected =
+                              editMode &&
+                              turn.lines.every((l) => selectedIds.has(l.id));
+
+                            return (
+                              <div key={ti}>
+                                {/* Speaker header (Sticky below Round header) */}
+                                <div className="sticky top-[38px] z-10 -ml-1 flex items-center gap-1.5 bg-background/80 py-0.5 backdrop-blur-sm">
+                                  <Button
+                                    variant="ghost"
+                                    onClick={() => toggleTurnCollapse(turnKey)}
+                                    className={`h-auto justify-start gap-1.5 rounded-md px-2 py-1 text-left text-xs transition-colors hover:bg-muted/50 ${speakerColor.text}`}
+                                  >
+                                    {isTurnCollapsed ? (
+                                      <ChevronRight className="h-3 w-3 shrink-0 opacity-50" />
+                                    ) : (
+                                      <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
+                                    )}
+                                    <span
+                                      className={`h-1.5 w-1.5 rounded-full ${speakerColor.dot}`}
+                                    />
+                                    <span className="font-bold tracking-tight">
+                                      {turn.speaker}
+                                    </span>
+                                  </Button>
+
+                                  {editMode && (
+                                    <Checkbox
+                                      checked={turnAllSelected}
+                                      className="ml-1 h-3.5 w-3.5"
+                                      onCheckedChange={() =>
+                                        toggleSelectTurn(turn.lines)
+                                      }
+                                    />
+                                  )}
+                                </div>
+
+                                {/* Lines */}
+                                {!isTurnCollapsed && (
+                                  <div className="ml-2 border-l border-border/20 pl-3 py-0.5">
+                                    {turn.lines.map((line) => {
+                                      const isSelected = selectedIds.has(
+                                        line.id,
+                                      );
+                                      const isPlaying =
+                                        activeTime >= line.start_time &&
+                                        activeTime <
+                                          (line.end_time ||
+                                            line.start_time + 5);
+
+                                      if (editMode) {
+                                        return (
+                                          <div
+                                            key={line.id}
+                                            className={`group/line flex items-start gap-2 rounded-md px-2 py-0.5 transition-colors ${
+                                              isSelected
+                                                ? "bg-primary/10"
+                                                : "hover:bg-muted/40"
+                                            }`}
+                                          >
+                                            <Checkbox
+                                              checked={isSelected}
+                                              onCheckedChange={() =>
+                                                toggleSelect(line.id)
+                                              }
+                                              className="mt-1 h-3.5 w-3.5 shrink-0"
+                                            />
+                                            <span
+                                              className="flex-1 cursor-pointer text-[13px] leading-relaxed text-foreground"
+                                              onClick={() =>
+                                                toggleSelect(line.id)
+                                              }
+                                            >
+                                              {line.content}
+                                            </span>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() =>
+                                                setEditingLine(line)
+                                              }
+                                              className="h-5 w-5 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover/line:opacity-100 focus:opacity-100"
+                                              title="Edit this line"
+                                            >
+                                              <Pencil className="h-2.5 w-2.5" />
+                                            </Button>
+                                          </div>
+                                        );
+                                      }
+
+                                      return (
+                                        <button
+                                          key={line.id}
+                                          onClick={() =>
+                                            handleSeek(line.start_time)
+                                          }
+                                          className={cn(
+                                            "group/line flex w-full items-baseline gap-3 rounded-md px-1.5 py-0.5 text-left text-[13px] transition-all duration-300",
+                                            isPlaying
+                                              ? "bg-primary/8 text-foreground"
+                                              : "hover:bg-muted/30 text-foreground/80",
+                                          )}
+                                        >
+                                          <div className="flex min-w-[32px] items-center gap-1 shrink-0">
+                                            {isPlaying ? (
+                                              <Play className="h-2 w-2 fill-primary text-primary animate-pulse" />
+                                            ) : (
+                                              <span className="font-mono text-[9px] tabular-nums text-muted-foreground/30 transition-colors group-hover/line:text-muted-foreground">
+                                                {formatTime(line.start_time)}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <span
+                                            className={cn(
+                                              "leading-relaxed transition-colors",
+                                              isPlaying
+                                                ? "font-medium text-foreground"
+                                                : "group-hover/line:text-foreground",
+                                            )}
+                                          >
+                                            {line.content}
+                                          </span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Footer */}
+              <div className="mt-12 border-t border-border pt-6 text-center">
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60">
+                  {lines.length} lines transcribed • Community edits welcome
+                </p>
+              </div>
+
+              {editMode && selectedIds.size > 0 && <div className="h-20" />}
+            </div>
+          </div>
+        </div>
       </main>
 
       {/* Batch action bar */}
