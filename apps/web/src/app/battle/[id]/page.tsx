@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+  Fragment,
+} from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Link from "next/link";
@@ -18,6 +25,8 @@ import {
   Clock,
   ArrowLeft,
   Play,
+  Plus,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusBadge, STATUS_CONFIG } from "@/components/StatusBadge";
@@ -30,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import BatchActionBar from "@/components/BatchActionBar";
 import BattleEditModal from "@/components/BattleEditModal";
+import BattleAddLineModal from "@/components/BattleAddLineModal";
 import type { Emcee } from "@/lib/types";
 import type { UserRole } from "@/lib/auth";
 
@@ -179,6 +189,13 @@ export default function BattlePage() {
   const [editMode, setEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [editingLine, setEditingLine] = useState<BattleLine | null>(null);
+  const [addingLine, setAddingLine] = useState(false);
+  const [addingLineData, setAddingLineData] = useState<{
+    start_time?: number;
+    end_time?: number;
+    round_number?: number | null;
+    emcee_id?: string | null;
+  } | null>(null);
   const [userRole, setUserRole] = useState<UserRole>("viewer");
   const canEdit = ["superadmin", "admin", "editor"].includes(userRole);
   const canBatchEdit = ["superadmin", "admin"].includes(userRole);
@@ -713,26 +730,48 @@ export default function BattlePage() {
                 </h2>
               </div>
               {canEdit && (
-                <Button
-                  variant={editMode ? "default" : "outline"}
-                  size="sm"
-                  onClick={handleToggleEditMode}
-                  className="h-7 px-3 text-[10px] font-bold uppercase tracking-wider underline-none"
-                >
-                  {editMode ? (
-                    <>
-                      <X className="mr-1.5 h-3 w-3" />
-                      Exit Edit
-                    </>
-                  ) : (
-                    <>
-                      <Pencil className="mr-1.5 h-3 w-3" />
-                      Edit
-                    </>
+                <div className="flex items-center gap-2">
+                  {editMode && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setAddingLine(true)}
+                      className="h-7 px-3 text-[10px] font-bold uppercase tracking-wider cursor-pointer"
+                    >
+                      <Plus className="mr-1.5 h-3 w-3" />
+                      Add Line
+                    </Button>
                   )}
-                </Button>
+                  <Button
+                    variant={editMode ? "default" : "outline"}
+                    size="sm"
+                    onClick={handleToggleEditMode}
+                    className="h-7 px-3 text-[10px] font-bold uppercase tracking-wider underline-none cursor-pointer"
+                  >
+                    {editMode ? (
+                      <>
+                        <X className="mr-1.5 h-3 w-3" />
+                        Exit Edit
+                      </>
+                    ) : (
+                      <>
+                        <Pencil className="mr-1.5 h-3 w-3" />
+                        Edit
+                      </>
+                    )}
+                  </Button>
+                </div>
               )}
             </div>
+
+            {editMode && (
+              <div className="px-5 py-1.5 border-b border-border/5 bg-muted/20 animate-in fade-in duration-500">
+                <p className="text-[9px] font-medium tracking-widest text-muted-foreground/50 text-center uppercase">
+                  CLICK + BETWEEN LINES TO INSERT
+                </p>
+              </div>
+            )}
+
             <div
               ref={transcriptContainerRef}
               className="flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:var(--muted)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted"
@@ -821,7 +860,7 @@ export default function BattlePage() {
                                 {/* Lines */}
                                 {!isTurnCollapsed && (
                                   <div className="ml-2 border-l border-border/20 pl-3 py-0.5">
-                                    {turn.lines.map((line) => {
+                                    {turn.lines.map((line, li) => {
                                       const isSelected = selectedIds.has(
                                         line.id,
                                       );
@@ -831,80 +870,167 @@ export default function BattlePage() {
                                           (line.end_time ||
                                             line.start_time + 5);
 
-                                      if (editMode) {
-                                        return (
-                                          <div
-                                            key={line.id}
-                                            className={`group/line flex items-start gap-2 rounded-md px-2 py-0.5 transition-colors ${
-                                              isSelected
-                                                ? "bg-primary/10"
-                                                : "hover:bg-muted/40"
-                                            }`}
-                                          >
-                                            <Checkbox
-                                              checked={isSelected}
-                                              onCheckedChange={() =>
-                                                toggleSelect(line.id)
-                                              }
-                                              className="mt-1 h-3.5 w-3.5 shrink-0"
-                                            />
-                                            <span
-                                              className="flex-1 cursor-pointer text-[13px] leading-relaxed text-foreground"
-                                              onClick={() =>
-                                                toggleSelect(line.id)
-                                              }
-                                            >
-                                              {line.content}
-                                            </span>
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              onClick={() =>
-                                                setEditingLine(line)
-                                              }
-                                              className="h-5 w-5 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover/line:opacity-100 focus:opacity-100"
-                                              title="Edit this line"
-                                            >
-                                              <Pencil className="h-2.5 w-2.5" />
-                                            </Button>
-                                          </div>
-                                        );
-                                      }
-
                                       return (
-                                        <button
-                                          key={line.id}
-                                          data-line-id={line.id}
-                                          onClick={() =>
-                                            handleSeek(line.start_time)
-                                          }
-                                          className={cn(
-                                            "group/line flex w-full items-baseline gap-3 rounded-md px-1.5 py-0.5 text-left text-[13px] transition-all duration-300 ease-in-out",
-                                            isPlaying
-                                              ? "bg-primary/10 border-l-2 border-primary rounded-l-none font-semibold"
-                                              : "hover:bg-muted/30 text-foreground/80 border-l-2 border-transparent",
-                                          )}
-                                        >
-                                          <div className="flex min-w-[32px] items-center gap-1 shrink-0">
-                                            {isPlaying ? (
-                                              <Play className="h-2 w-2 fill-primary text-primary animate-pulse" />
-                                            ) : (
-                                              <span className="font-mono text-[9px] tabular-nums text-muted-foreground/30 transition-colors group-hover/line:text-muted-foreground">
-                                                {formatTime(line.start_time)}
+                                        <Fragment key={line.id}>
+                                          {/* First line of the very first turn needs an insert button above it if it's the start of the transcript */}
+                                          {gi === 0 &&
+                                            ti === 0 &&
+                                            li === 0 &&
+                                            editMode && (
+                                              <div className="relative h-4 w-full group/insert flex items-center justify-center -mt-2 mb-2 z-20">
+                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                  <div className="w-full border-t border-dashed border-primary/20 lg:border-primary/0 lg:group-hover/insert:border-primary/30 transition-colors" />
+                                                </div>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  onClick={() => {
+                                                    setAddingLineData({
+                                                      start_time: Math.max(
+                                                        0,
+                                                        line.start_time - 2,
+                                                      ),
+                                                      end_time: line.start_time,
+                                                      round_number:
+                                                        line.round_number,
+                                                      emcee_id: line.emcee?.id,
+                                                    });
+                                                    setAddingLine(true);
+                                                  }}
+                                                  className="h-5 w-5 rounded-full bg-background border border-primary/20 text-primary opacity-100 lg:opacity-0 lg:group-hover/insert:opacity-100 transition-all hover:bg-primary hover:text-primary-foreground scale-100 lg:scale-75 lg:group-hover/insert:scale-100 shadow-md hover:shadow-primary/20 cursor-pointer z-30"
+                                                >
+                                                  <Plus className="h-3.5 w-3.5" />
+                                                </Button>
+                                              </div>
+                                            )}
+
+                                          {editMode ? (
+                                            <div
+                                              className={`group/line flex items-start gap-2 rounded-md px-2 py-0.5 transition-colors ${
+                                                isSelected
+                                                  ? "bg-primary/10"
+                                                  : "hover:bg-muted/40"
+                                              }`}
+                                            >
+                                              <Checkbox
+                                                checked={isSelected}
+                                                onCheckedChange={() =>
+                                                  toggleSelect(line.id)
+                                                }
+                                                className="mt-1 h-3.5 w-3.5 shrink-0"
+                                              />
+                                              <span
+                                                className="flex-1 cursor-pointer text-[13px] leading-relaxed text-foreground"
+                                                onClick={() =>
+                                                  toggleSelect(line.id)
+                                                }
+                                              >
+                                                {line.content}
                                               </span>
-                                            )}
-                                          </div>
-                                          <span
-                                            className={cn(
-                                              "leading-relaxed transition-colors",
-                                              isPlaying
-                                                ? "text-foreground"
-                                                : "group-hover/line:text-foreground",
-                                            )}
-                                          >
-                                            {line.content}
-                                          </span>
-                                        </button>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                  setEditingLine(line)
+                                                }
+                                                className="h-5 w-5 shrink-0 text-muted-foreground opacity-100 lg:opacity-0 lg:transition-opacity hover:bg-muted hover:text-foreground lg:group-hover/line:opacity-100 focus:opacity-100"
+                                                title="Edit this line"
+                                              >
+                                                <Pencil className="h-2.5 w-2.5" />
+                                              </Button>
+                                            </div>
+                                          ) : (
+                                            <button
+                                              data-line-id={line.id}
+                                              onClick={() =>
+                                                handleSeek(line.start_time)
+                                              }
+                                              className={cn(
+                                                "group/line flex w-full items-baseline gap-3 rounded-md px-1.5 py-0.5 text-left text-[13px] transition-all duration-300 ease-in-out",
+                                                isPlaying
+                                                  ? "bg-primary/10 border-l-2 border-primary rounded-l-none font-semibold"
+                                                  : "hover:bg-muted/30 text-foreground/80 border-l-2 border-transparent",
+                                              )}
+                                            >
+                                              <div className="flex min-w-[32px] items-center gap-1 shrink-0">
+                                                {isPlaying ? (
+                                                  <Play className="h-2 w-2 fill-primary text-primary animate-pulse" />
+                                                ) : (
+                                                  <span className="font-mono text-[9px] tabular-nums text-muted-foreground/30 transition-colors group-hover/line:text-muted-foreground">
+                                                    {formatTime(
+                                                      line.start_time,
+                                                    )}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <span
+                                                className={cn(
+                                                  "leading-relaxed transition-colors",
+                                                  isPlaying
+                                                    ? "text-foreground"
+                                                    : "group-hover/line:text-foreground",
+                                                )}
+                                              >
+                                                {line.content}
+                                              </span>
+                                            </button>
+                                          )}
+
+                                          {/* Insert Line button - after every line in edit mode */}
+                                          {editMode && (
+                                            <div className="relative h-4 w-full group/insert flex items-center justify-center -my-0.5 z-10">
+                                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                <div className="w-full border-t border-dashed border-primary/20 lg:border-primary/0 lg:group-hover/insert:border-primary/30 transition-colors" />
+                                              </div>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => {
+                                                  const turnsInRound =
+                                                    group.turns;
+                                                  const turnsTotal =
+                                                    roundGroups.flatMap(
+                                                      (rg) => rg.turns,
+                                                    );
+                                                  const lineIdxInTurn =
+                                                    turn.lines.indexOf(line);
+                                                  const isLastInTurn =
+                                                    lineIdxInTurn ===
+                                                    turn.lines.length - 1;
+
+                                                  // Find the next line globally if possible
+                                                  const allLines = lines;
+                                                  const currentGlobalIdx =
+                                                    allLines.findIndex(
+                                                      (l) => l.id === line.id,
+                                                    );
+                                                  const nextLine =
+                                                    allLines[
+                                                      currentGlobalIdx + 1
+                                                    ];
+
+                                                  setAddingLineData({
+                                                    start_time:
+                                                      line.end_time ||
+                                                      line.start_time + 1,
+                                                    end_time:
+                                                      nextLine?.start_time ||
+                                                      (line.end_time ||
+                                                        line.start_time + 1) +
+                                                        2,
+                                                    round_number:
+                                                      line.round_number,
+                                                    emcee_id: line.emcee?.id,
+                                                  });
+                                                  setAddingLine(true);
+                                                }}
+                                                className="h-5 w-5 rounded-full bg-background border border-primary/20 text-primary opacity-100 lg:opacity-0 lg:group-hover/insert:opacity-100 transition-all hover:bg-primary hover:text-primary-foreground scale-100 lg:scale-75 lg:group-hover/insert:scale-100 shadow-md hover:shadow-primary/20 cursor-pointer z-30"
+                                              >
+                                                <Plus className="h-3.5 w-3.5" />
+                                              </Button>
+                                            </div>
+                                          )}
+                                        </Fragment>
                                       );
                                     })}
                                   </div>
@@ -953,6 +1079,24 @@ export default function BattlePage() {
           onClose={() => setEditingLine(null)}
           onSaved={() => {
             setEditingLine(null);
+            fetchBattle();
+          }}
+        />
+      )}
+      {/* Add-line modal */}
+      {addingLine && (
+        <BattleAddLineModal
+          battleId={battleId}
+          currentTime={activeTime}
+          emcees={emcees}
+          initialData={addingLineData || undefined}
+          onClose={() => {
+            setAddingLine(false);
+            setAddingLineData(null);
+          }}
+          onSaved={() => {
+            setAddingLine(false);
+            setAddingLineData(null);
             fetchBattle();
           }}
         />
