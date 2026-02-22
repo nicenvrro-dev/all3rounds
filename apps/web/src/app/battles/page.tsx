@@ -1,6 +1,7 @@
 "use client";
 
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import { createClient } from "@/lib/supabase/client";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -91,7 +92,7 @@ function BattleCard({ battle }: { battle: Battle }) {
     <Link href={`/battle/${battle.id}`} className="group block">
       <div className="overflow-hidden rounded-lg border border-border bg-card transition-all duration-200 hover:border-primary/50 hover:shadow-md">
         {/* Thumbnail */}
-        <div className="relative aspect-video w-full overflow-hidden bg-muted">
+        <div className="relative aspect-video w-full overflow-hidden bg-black">
           <Image
             src={`https://img.youtube.com/vi/${battle.youtube_id}/mqdefault.jpg`}
             alt={battle.title}
@@ -104,7 +105,11 @@ function BattleCard({ battle }: { battle: Battle }) {
 
           {/* Status Badge Over Image */}
           <div className="absolute right-2 top-2">
-            <StatusBadge status={battle.status} className="backdrop-blur-xl" />
+            <StatusBadge
+              status={battle.status}
+              noTooltip
+              className="backdrop-blur-xl"
+            />
           </div>
         </div>
 
@@ -233,10 +238,10 @@ function BattlesDirectory() {
   );
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
       <Header />
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 flex-1 w-full">
         {/* Page Header */}
         <div className="mb-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-1">
@@ -316,6 +321,7 @@ function BattlesDirectory() {
           </div>
         )}
       </main>
+      <Footer />
     </div>
   );
 }

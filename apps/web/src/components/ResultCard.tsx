@@ -8,6 +8,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./StatusBadge";
 import { Play, Pencil, Mic2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -62,11 +63,13 @@ export default function ResultCard({
 
   const speaker = result.emcee?.name || result.speaker_label || "Unknown";
 
+  const router = useRouter();
+
   return (
     <>
-      <Link
-        href={`/battle/${result.battle.id}`}
-        className="group block overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-border/60"
+      <div
+        onClick={() => router.push(`/battle/${result.battle.id}`)}
+        className="group block cursor-pointer overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-border/60"
       >
         <div className="relative flex min-h-[120px]">
           {/* Thumbnail — flush left, fills height */}
@@ -137,6 +140,7 @@ export default function ResultCard({
                 variant="default"
                 size="sm"
                 asChild
+                onClick={(e) => e.stopPropagation()}
                 className="h-7 gap-1.5 bg-foreground px-3 text-xs font-medium text-background transition-opacity hover:opacity-80"
               >
                 <Link
@@ -166,7 +170,7 @@ export default function ResultCard({
             </div>
           </div>
         </div>
-      </Link>
+      </div>
 
       {/* Edit modal */}
       {showEdit && (

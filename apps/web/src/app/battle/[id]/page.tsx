@@ -43,6 +43,7 @@ import {
 import BatchActionBar from "@/components/BatchActionBar";
 import BattleEditModal from "@/components/BattleEditModal";
 import BattleAddLineModal from "@/components/BattleAddLineModal";
+import Footer from "@/components/Footer";
 import type { Emcee } from "@/lib/types";
 import type { UserRole } from "@/lib/auth";
 
@@ -1076,7 +1077,7 @@ export default function BattlePage() {
                     className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
                     <ExternalLink className="h-3 w-3" />
-                    Original
+                    Watch on YouTube
                   </a>
                 </div>
               </div>
@@ -1291,7 +1292,7 @@ export default function BattlePage() {
               </div>
 
               {/* Footer */}
-              <div className="mt-12 border-t border-border pt-6 text-center">
+              <div className="mt-12 border-t border-border pt-6 text-center space-y-4">
                 <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60">
                   {lines.length} lines transcribed • Community edits welcome
                 </p>
@@ -1346,6 +1347,7 @@ export default function BattlePage() {
           }}
         />
       )}
+      <Footer />
     </div>
   );
 }

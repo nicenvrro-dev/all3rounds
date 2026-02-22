@@ -7,12 +7,14 @@ export default function Header() {
     <>
       <header className="bg-card/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-          <Link
-            href="/"
-            className="text-xl font-black tracking-tighter uppercase text-foreground transition-transform hover:scale-105"
-          >
-            dataverse
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              className="text-xl font-black tracking-tighter uppercase text-foreground transition-transform hover:scale-105"
+            >
+              dataverse
+            </Link>
+          </div>
           <div className="flex items-center gap-6">
             <Link
               href="/battles"

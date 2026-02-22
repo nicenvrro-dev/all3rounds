@@ -1,9 +1,10 @@
 import SearchBar from "@/components/SearchBar";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex h-dvh flex-col bg-background">
       <Header />
 
       <main className="mx-auto flex flex-1 max-w-4xl items-center justify-center px-4 sm:px-6">
@@ -27,6 +28,8 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      <Footer />
     </div>
   );
 }
