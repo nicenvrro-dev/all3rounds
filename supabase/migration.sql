@@ -96,7 +96,7 @@ CREATE INDEX IF NOT EXISTS idx_battles_title_trgm ON battles USING GIN (title gi
 -- 5.5 Hybrid Search Function (FTS + Trigrams)
 -- ============================================
 
-CREATE OR REPLACE FUNCTION search_all_hybrid(search_term TEXT, search_limit INT DEFAULT 20, search_offset INT DEFAULT 0)
+CREATE OR REPLACE FUNCTION search_all_hybrid(search_term TEXT)
 RETURNS TABLE (
   id BIGINT,
   content TEXT,
@@ -140,9 +140,7 @@ BEGIN
     OR l.content % search_term
     OR COALESCE(e.name, '') % search_term
     OR COALESCE(b.title, '') % search_term
-  ORDER BY rank DESC
-  LIMIT search_limit
-  OFFSET search_offset;
+  ORDER BY rank DESC;
 END;
 $$ LANGUAGE plpgsql;
 

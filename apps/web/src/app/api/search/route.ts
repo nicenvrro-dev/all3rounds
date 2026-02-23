@@ -43,15 +43,9 @@ export async function GET(request: NextRequest) {
 
   // --- Search ---
   // Using the hybrid search RPC function that combines FTS and Trigrams
-  const { data, error, count } = await supabase.rpc(
-    "search_all_hybrid",
-    {
-      search_term: query,
-      search_limit: limit,
-      search_offset: offset,
-    },
-    { count: "exact" },
-  );
+  const { data, error, count } = await supabase
+    .rpc("search_all_hybrid", { search_term: query }, { count: "exact" })
+    .range(offset, offset + limit - 1);
 
   // Map the flat RPC result back to the expected nested structure for the frontend
   const formattedData = (data as any[])?.map((row) => ({
