@@ -42,25 +42,38 @@ export async function GET(request: NextRequest) {
   }
 
   // --- Search ---
-  // Use ILIKE with trigram index for fuzzy matching
-  const { data, error, count } = await supabase
-    .from("lines")
-    .select(
-      `
-      id,
-      content,
-      start_time,
-      end_time,
-      round_number,
-      speaker_label,
-      emcee:emcees ( id, name ),
-      battle:battles ( id, title, youtube_id, event_name, event_date, url, status )
-    `,
-      { count: "exact" },
-    )
-    .ilike("content", `%${query}%`)
-    .order("id", { ascending: true })
-    .range(offset, offset + limit - 1);
+  // Using the hybrid search RPC function that combines FTS and Trigrams
+  const { data, error, count } = await supabase.rpc(
+    "search_all_hybrid",
+    {
+      search_term: query,
+      search_limit: limit,
+      search_offset: offset,
+    },
+    { count: "exact" },
+  );
+
+  // Map the flat RPC result back to the expected nested structure for the frontend
+  const formattedData = (data as any[])?.map((row) => ({
+    id: row.id,
+    content: row.content,
+    start_time: row.start_time,
+    end_time: row.end_time,
+    round_number: row.round_number,
+    speaker_label: row.speaker_label,
+    emcee: row.emcee_id ? { id: row.emcee_id, name: row.emcee_name } : null,
+    battle: {
+      id: row.battle_id,
+      title: row.battle_title,
+      youtube_id: row.battle_youtube_id,
+      event_name: row.battle_event_name,
+      event_date: row.battle_event_date,
+      status: row.battle_status,
+      // URL is a generated column in battles table, we reconstruct it here or fetch it
+      url: `https://www.youtube.com/watch?v=${row.battle_youtube_id}`,
+    },
+    rank: row.rank,
+  }));
 
   if (error) {
     console.error("Search error:", error);
@@ -71,7 +84,7 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({
-    results: data || [],
+    results: formattedData || [],
     total: count || 0,
     page,
     totalPages: Math.ceil((count || 0) / limit),

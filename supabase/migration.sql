@@ -88,6 +88,64 @@ CREATE INDEX IF NOT EXISTS idx_lines_emcee_id ON lines (emcee_id);
 CREATE INDEX IF NOT EXISTS idx_battle_participants_battle_id ON battle_participants (battle_id);
 CREATE INDEX IF NOT EXISTS idx_edit_history_line_id ON edit_history (line_id);
 
+-- Trigram indexes for Emcees and Battles
+CREATE INDEX IF NOT EXISTS idx_emcees_name_trgm ON emcees USING GIN (name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_battles_title_trgm ON battles USING GIN (title gin_trgm_ops);
+
+-- ============================================
+-- 5.5 Hybrid Search Function (FTS + Trigrams)
+-- ============================================
+
+CREATE OR REPLACE FUNCTION search_all_hybrid(search_term TEXT, search_limit INT DEFAULT 20, search_offset INT DEFAULT 0)
+RETURNS TABLE (
+  id BIGINT,
+  content TEXT,
+  start_time FLOAT,
+  end_time FLOAT,
+  round_number INT,
+  speaker_label TEXT,
+  emcee_id UUID,
+  emcee_name TEXT,
+  battle_id UUID,
+  battle_title TEXT,
+  battle_youtube_id TEXT,
+  battle_event_name TEXT,
+  battle_event_date DATE,
+  battle_status text,
+  rank FLOAT4
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    l.id, l.content, l.start_time, l.end_time, l.round_number, l.speaker_label,
+    e.id as emcee_id, e.name as emcee_name,
+    b.id as battle_id, b.title as battle_title, b.youtube_id, b.event_name, b.event_date, b.status::text,
+    (
+      -- Exact match bonuses (huge boost)
+      CASE WHEN l.content ILIKE search_term THEN 100.0 ELSE 0.0 END +
+      CASE WHEN e.name ILIKE search_term THEN 200.0 ELSE 0.0 END +
+      CASE WHEN b.title ILIKE search_term THEN 150.0 ELSE 0.0 END +
+      -- Full-Text Search rank (high weight)
+      ts_rank_cd(l.search_vector, websearch_to_tsquery('simple', search_term)) * 10.0 +
+      -- Similarity scores (trigrams)
+      similarity(l.content, search_term) * 1.0 +
+      similarity(COALESCE(e.name, ''), search_term) * 5.0 +
+      similarity(COALESCE(b.title, ''), search_term) * 3.0
+    )::FLOAT4 as rank
+  FROM lines l
+  LEFT JOIN emcees e ON l.emcee_id = e.id
+  LEFT JOIN battles b ON l.battle_id = b.id
+  WHERE 
+    l.search_vector @@ websearch_to_tsquery('simple', search_term)
+    OR l.content % search_term
+    OR COALESCE(e.name, '') % search_term
+    OR COALESCE(b.title, '') % search_term
+  ORDER BY rank DESC
+  LIMIT search_limit
+  OFFSET search_offset;
+END;
+$$ LANGUAGE plpgsql;
+
 -- ============================================
 -- Row Level Security (RLS)
 -- ============================================
