@@ -30,6 +30,8 @@ import {
   Play,
   Plus,
   Info,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusBadge, STATUS_CONFIG } from "@/components/StatusBadge";
@@ -398,6 +400,7 @@ export default function BattlePage() {
   // -- Inline Edit State --
   const [inlineEditingId, setInlineEditingId] = useState<number | null>(null);
   const [inlineContent, setInlineContent] = useState("");
+  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(false);
 
   // ────────────────────────────────────────────────────────────────────────────
   // Effects & Data Fetching
@@ -435,6 +438,17 @@ export default function BattlePage() {
         .catch(() => {});
     }
   }, [editMode, emcees.length]);
+
+  useEffect(() => {
+    if (isTranscriptExpanded) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isTranscriptExpanded]);
 
   // -- YouTube IFrame API Initialization --
   useEffect(() => {
@@ -1090,220 +1104,250 @@ export default function BattlePage() {
           </div>
 
           {/* ── Right Column: Transcript (Scrollable) ── */}
-          <div className="flex flex-1 flex-col overflow-hidden pb-4 lg:col-span-5 lg:h-full lg:pb-6 xl:col-span-4">
-            <div className="mb-2 md:mb-4 flex items-center justify-between px-1">
-              <div className="flex items-center gap-2">
-                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-foreground/70">
-                  Transcript
-                </h2>
-              </div>
-              {canEdit && (
+          <div className="flex flex-1 flex-col min-h-0 lg:col-span-5 lg:h-full lg:pb-6 xl:col-span-4">
+            <div
+              className={cn(
+                "flex h-full flex-col overflow-hidden bg-card/50 transition-colors duration-300 sm:rounded-xl sm:border sm:border-border/50",
+                isTranscriptExpanded
+                  ? "fixed inset-0 z-50 bg-background p-4 pt-12 pb-8 animate-in slide-in-from-bottom-full duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] sm:p-8"
+                  : "relative pb-4",
+              )}
+            >
+              <div className="mb-2 md:mb-4 flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
-                  {editMode && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setAddingLine(true)}
-                      className="h-7 px-3 text-[10px] font-bold uppercase tracking-wider cursor-pointer"
-                    >
-                      <Plus className="mr-1.5 h-3 w-3" />
-                      Add Line
-                    </Button>
-                  )}
+                  <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-foreground/70">
+                    Transcript
+                  </h2>
                   <Button
-                    variant={editMode ? "default" : "outline"}
-                    size="sm"
-                    disabled={isPending}
-                    onClick={handleToggleEditMode}
-                    className="h-7 px-3 text-[10px] font-bold uppercase tracking-wider underline-none cursor-pointer"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full hover:bg-muted/80 active:scale-90 transition-all lg:hidden"
+                    onClick={() =>
+                      setIsTranscriptExpanded(!isTranscriptExpanded)
+                    }
                   >
-                    {isPending ? (
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                        <span>Switching...</span>
-                      </div>
-                    ) : editMode ? (
-                      <>
-                        <X className="mr-1.5 h-3 w-3" />
-                        Exit Edit
-                      </>
+                    {isTranscriptExpanded ? (
+                      <Minimize2 className="h-5 w-5 text-primary animate-in spin-in-90 duration-300" />
                     ) : (
-                      <>
-                        <Pencil className="mr-1.5 h-3 w-3" />
-                        Edit
-                      </>
+                      <Maximize2 className="h-4 w-4 text-muted-foreground transition-transform group-hover:scale-110" />
                     )}
                   </Button>
                 </div>
-              )}
-            </div>
-
-            {editMode && (
-              <div className="px-3 py-1.5 md:px-5 md:py-2 border-b border-border/10 bg-primary/5 animate-in slide-in-from-top-1 duration-500">
-                <div className="flex flex-col gap-1 items-center">
-                  <p className="text-[10px] font-bold tracking-widest text-primary/80 uppercase">
-                    Editing Mode
-                  </p>
-                  <p className="text-[9px] font-medium tracking-wider text-muted-foreground/60 uppercase text-center">
-                    <span className="md:hidden">
-                      Tap text to edit • Saves automatically
-                    </span>
-                    <span className="hidden md:inline">
-                      Click text to edit •{" "}
-                      <span className="text-foreground/70 font-bold border rounded px-1 py-0.5 text-[7px] border-border bg-background shadow-xs">
-                        ENTER
-                      </span>{" "}
-                      SAVE & NEXT •{" "}
-                      <span className="text-foreground/70 font-bold border rounded px-1 py-0.5 text-[7px] border-border bg-background shadow-xs">
-                        ESC
-                      </span>{" "}
-                      CANCEL
-                    </span>
-                  </p>
-                </div>
+                {canEdit && (
+                  <div className="flex items-center gap-2">
+                    {editMode && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setAddingLine(true)}
+                        className="h-7 px-3 text-[10px] font-bold uppercase tracking-wider cursor-pointer"
+                      >
+                        <Plus className="mr-1.5 h-3 w-3" />
+                        Add Line
+                      </Button>
+                    )}
+                    <Button
+                      variant={editMode ? "default" : "outline"}
+                      size="sm"
+                      disabled={isPending}
+                      onClick={handleToggleEditMode}
+                      className="h-7 px-3 text-[10px] font-bold uppercase tracking-wider underline-none cursor-pointer"
+                    >
+                      {isPending ? (
+                        <div className="flex items-center gap-2">
+                          <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                          <span>Switching...</span>
+                        </div>
+                      ) : editMode ? (
+                        <>
+                          <X className="mr-1.5 h-3 w-3" />
+                          Exit Edit
+                        </>
+                      ) : (
+                        <>
+                          <Pencil className="mr-1.5 h-3 w-3" />
+                          Edit
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
 
-            <div
-              ref={transcriptContainerRef}
-              className="flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:var(--muted)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted"
-            >
-              <div className="space-y-1">
-                {roundGroups.map((group: RoundGroup, gi: number) => {
-                  const isRoundCollapsed = collapsedRounds.has(gi);
-                  const roundLabel = group.round
-                    ? `Round ${group.round}`
-                    : "Unassigned";
-                  const lineCount = group.turns.reduce(
-                    (sum: number, t: Turn) => sum + t.lines.length,
-                    0,
-                  );
+              {editMode && (
+                <div className="px-3 py-1.5 md:px-5 md:py-2 border-b border-border/10 bg-primary/5 animate-in slide-in-from-top-1 duration-500">
+                  <div className="flex flex-col gap-1 items-center">
+                    <p className="text-[10px] font-bold tracking-widest text-primary/80 uppercase">
+                      Editing Mode
+                    </p>
+                    <p className="text-[9px] font-medium tracking-wider text-muted-foreground/60 uppercase text-center">
+                      <span className="md:hidden">
+                        Tap text to edit • Saves automatically
+                      </span>
+                      <span className="hidden md:inline">
+                        Click text to edit •{" "}
+                        <span className="text-foreground/70 font-bold border rounded px-1 py-0.5 text-[7px] border-border bg-background shadow-xs">
+                          ENTER
+                        </span>{" "}
+                        SAVE & NEXT •{" "}
+                        <span className="text-foreground/70 font-bold border rounded px-1 py-0.5 text-[7px] border-border bg-background shadow-xs">
+                          ESC
+                        </span>{" "}
+                        CANCEL
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              )}
 
-                  return (
-                    <div key={gi}>
-                      {/* Round header (Sticky within scroll area) */}
-                      <div className="sticky top-0 z-20 bg-background/95 py-1 backdrop-blur-sm">
-                        <Button
-                          variant="ghost"
-                          onClick={() => toggleRoundCollapse(gi)}
-                          className="h-auto w-full justify-start gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted/50"
-                        >
-                          {isRoundCollapsed ? (
-                            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          )}
-                          <span className="text-xs font-bold uppercase tracking-widest text-foreground">
-                            {roundLabel}
-                          </span>
-                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                            {lineCount}
-                          </span>
-                        </Button>
-                      </div>
+              <div
+                ref={transcriptContainerRef}
+                className="flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:var(--muted)_transparent] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted"
+              >
+                <div className="space-y-1">
+                  {roundGroups.map((group: RoundGroup, gi: number) => {
+                    const isRoundCollapsed = collapsedRounds.has(gi);
+                    const roundLabel = group.round
+                      ? `Round ${group.round}`
+                      : "Unassigned";
+                    const lineCount = group.turns.reduce(
+                      (sum: number, t: Turn) => sum + t.lines.length,
+                      0,
+                    );
 
-                      {/* Round children */}
-                      {!isRoundCollapsed && (
-                        <div className="ml-2 border-l-2 border-border/40 pl-3 space-y-0.5">
-                          {group.turns.map((turn: Turn, ti: number) => {
-                            const turnKey = `${gi}-${ti}`;
-                            const isTurnCollapsed = collapsedTurns.has(turnKey);
-                            const speakerColor = getSpeakerColor(
-                              turn.speaker,
-                              speakerSet.indexOf(turn.speaker),
-                            );
-                            const turnAllSelected =
-                              editMode &&
-                              turn.lines.every((l: BattleLine) =>
-                                selectedIds.has(l.id),
+                    return (
+                      <div key={gi}>
+                        {/* Round header (Sticky within scroll area) */}
+                        <div className="sticky top-0 z-20 bg-background/95 py-1 backdrop-blur-sm">
+                          <Button
+                            variant="ghost"
+                            onClick={() => toggleRoundCollapse(gi)}
+                            className="h-auto w-full justify-start gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted/50"
+                          >
+                            {isRoundCollapsed ? (
+                              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            )}
+                            <span className="text-xs font-bold uppercase tracking-widest text-foreground">
+                              {roundLabel}
+                            </span>
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                              {lineCount}
+                            </span>
+                          </Button>
+                        </div>
+
+                        {/* Round children */}
+                        {!isRoundCollapsed && (
+                          <div className="ml-2 border-l-2 border-border/40 pl-3 space-y-0.5">
+                            {group.turns.map((turn: Turn, ti: number) => {
+                              const turnKey = `${gi}-${ti}`;
+                              const isTurnCollapsed =
+                                collapsedTurns.has(turnKey);
+                              const speakerColor = getSpeakerColor(
+                                turn.speaker,
+                                speakerSet.indexOf(turn.speaker),
                               );
+                              const turnAllSelected =
+                                editMode &&
+                                turn.lines.every((l: BattleLine) =>
+                                  selectedIds.has(l.id),
+                                );
 
-                            return (
-                              <div key={ti}>
-                                {/* Speaker header (Sticky below Round header) */}
-                                <div className="sticky top-[38px] z-10 -ml-1 flex items-center gap-1.5 bg-background/80 py-0.5 backdrop-blur-sm">
-                                  <Button
-                                    variant="ghost"
-                                    onClick={() => toggleTurnCollapse(turnKey)}
-                                    className={`h-auto justify-start gap-1.5 rounded-md px-2 py-1 text-left text-xs transition-colors hover:bg-muted/50 ${speakerColor.text}`}
-                                  >
-                                    {isTurnCollapsed ? (
-                                      <ChevronRight className="h-3 w-3 shrink-0 opacity-50" />
-                                    ) : (
-                                      <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
-                                    )}
-                                    <span
-                                      className={`h-1.5 w-1.5 rounded-full ${speakerColor.dot}`}
-                                    />
-                                    <span className="font-bold tracking-tight">
-                                      {turn.speaker}
-                                    </span>
-                                  </Button>
-
-                                  {editMode && (
-                                    <Checkbox
-                                      checked={turnAllSelected}
-                                      className="ml-1 h-3.5 w-3.5"
-                                      onCheckedChange={() =>
-                                        toggleSelectTurn(turn.lines)
+                              return (
+                                <div key={ti}>
+                                  {/* Speaker header (Sticky below Round header) */}
+                                  <div className="sticky top-[38px] z-10 -ml-1 flex items-center gap-1.5 bg-background/80 py-0.5 backdrop-blur-sm">
+                                    <Button
+                                      variant="ghost"
+                                      onClick={() =>
+                                        toggleTurnCollapse(turnKey)
                                       }
-                                    />
-                                  )}
-                                </div>
+                                      className={`h-auto justify-start gap-1.5 rounded-md px-2 py-1 text-left text-xs transition-colors hover:bg-muted/50 ${speakerColor.text}`}
+                                    >
+                                      {isTurnCollapsed ? (
+                                        <ChevronRight className="h-3 w-3 shrink-0 opacity-50" />
+                                      ) : (
+                                        <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
+                                      )}
+                                      <span
+                                        className={`h-1.5 w-1.5 rounded-full ${speakerColor.dot}`}
+                                      />
+                                      <span className="font-bold tracking-tight">
+                                        {turn.speaker}
+                                      </span>
+                                    </Button>
 
-                                {/* Lines */}
-                                {!isTurnCollapsed && (
-                                  <div className="ml-2 border-l border-border/20 pl-3 py-0.5">
-                                    {turn.lines.map(
-                                      (line: BattleLine, li: number) => (
-                                        <LineItem
-                                          key={line.id}
-                                          line={line}
-                                          editMode={editMode}
-                                          isSelected={selectedIds.has(line.id)}
-                                          isActive={activeLineId === line.id}
-                                          isLastClicked={
-                                            lastClickedLineId === line.id
-                                          }
-                                          inlineEditingId={inlineEditingId}
-                                          inlineContent={inlineContent}
-                                          onToggleSelect={toggleSelect}
-                                          onStartInlineEdit={startInlineEdit}
-                                          onInlineSave={handleInlineSave}
-                                          onSetInlineEditingId={
-                                            setInlineEditingId
-                                          }
-                                          onSetInlineContent={setInlineContent}
-                                          onSeek={handleSeek}
-                                          onEditClick={setEditingLine}
-                                          onAddClick={handleAddLineAt}
-                                          showBeforeInsert={
-                                            gi === 0 && ti === 0 && li === 0
-                                          }
-                                        />
-                                      ),
+                                    {editMode && (
+                                      <Checkbox
+                                        checked={turnAllSelected}
+                                        className="ml-1 h-3.5 w-3.5"
+                                        onCheckedChange={() =>
+                                          toggleSelectTurn(turn.lines)
+                                        }
+                                      />
                                     )}
                                   </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
 
-              {/* Footer */}
-              <div className="mt-12 border-t border-border pt-6 text-center space-y-4">
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60">
-                  {lines.length} lines transcribed • Community edits welcome
-                </p>
-              </div>
+                                  {/* Lines */}
+                                  {!isTurnCollapsed && (
+                                    <div className="ml-2 border-l border-border/20 pl-3 py-0.5">
+                                      {turn.lines.map(
+                                        (line: BattleLine, li: number) => (
+                                          <LineItem
+                                            key={line.id}
+                                            line={line}
+                                            editMode={editMode}
+                                            isSelected={selectedIds.has(
+                                              line.id,
+                                            )}
+                                            isActive={activeLineId === line.id}
+                                            isLastClicked={
+                                              lastClickedLineId === line.id
+                                            }
+                                            inlineEditingId={inlineEditingId}
+                                            inlineContent={inlineContent}
+                                            onToggleSelect={toggleSelect}
+                                            onStartInlineEdit={startInlineEdit}
+                                            onInlineSave={handleInlineSave}
+                                            onSetInlineEditingId={
+                                              setInlineEditingId
+                                            }
+                                            onSetInlineContent={
+                                              setInlineContent
+                                            }
+                                            onSeek={handleSeek}
+                                            onEditClick={setEditingLine}
+                                            onAddClick={handleAddLineAt}
+                                            showBeforeInsert={
+                                              gi === 0 && ti === 0 && li === 0
+                                            }
+                                          />
+                                        ),
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
 
-              {editMode && selectedIds.size > 0 && <div className="h-20" />}
+                {/* Footer */}
+                <div className="mt-12 border-t border-border pt-6 text-center space-y-4">
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60">
+                    {lines.length} lines transcribed • Community edits welcome
+                  </p>
+                </div>
+
+                {editMode && selectedIds.size > 0 && <div className="h-20" />}
+              </div>
             </div>
           </div>
         </div>
@@ -1325,7 +1369,7 @@ export default function BattlePage() {
       {/* Single-line edit modal */}
       {editingLine && (
         <BattleEditModal
-          line={editingLine}
+          line={editingLine as BattleLine}
           emcees={emcees}
           onClose={() => setEditingLine(null)}
           onSaved={() => {
