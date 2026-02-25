@@ -32,7 +32,6 @@ import subprocess
 import tempfile
 import warnings
 from datetime import datetime
-from pathlib import Path
 
 # Suppress noisy warnings from torchaudio, speechbrain, and torchcodec
 warnings.filterwarnings("ignore", message=".*torchaudio.*deprecated.*")
@@ -86,13 +85,27 @@ def extract_youtube_id(url: str) -> str:
     return url
 
 
+def get_yt_dlp_cookies() -> list[str]:
+    """Return ['--cookies', 'cookies.txt'] if the file exists, otherwise empty list."""
+    if os.path.exists("cookies.txt"):
+        return ["--cookies", "cookies.txt"]
+    return []
+
+
 def fetch_video_metadata(url: str) -> dict:
     """
     Fetch video metadata from YouTube using yt-dlp.
     Returns dict with: title, description, upload_date, channel.
     """
     print("[0/4] Fetching video metadata...")
-    cmd = ["yt-dlp", "--dump-json", "--no-download", url]
+    cmd = [
+        "yt-dlp", 
+        "--dump-json", 
+        "--no-download",
+        "--remote-components", "ejs:github",
+        "--extractor-args", "youtube:player-client=web",
+    ] + get_yt_dlp_cookies() + [url]
+    
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     data = json.loads(result.stdout)
 
@@ -105,15 +118,16 @@ def fetch_video_metadata(url: str) -> dict:
 
 
 def download_audio(url: str, output_dir: str) -> str:
-    """Download audio from YouTube as WAV using yt-dlp."""
-    output_path = os.path.join(output_dir, "audio.wav")
+    """Download audio from YouTube as MP3 using yt-dlp."""
+    output_path = os.path.join(output_dir, "audio.mp3")
     cmd = [
         "yt-dlp", "-x",
-        "--audio-format", "wav",
-        "--audio-quality", "0",
+        "--audio-format", "mp3",
+        "--audio-quality", "192K",
+        "--remote-components", "ejs:github",
+        "--extractor-args", "youtube:player-client=web",
         "-o", output_path,
-        url,
-    ]
+    ] + get_yt_dlp_cookies() + [url]
     print(f"[1/4] Downloading audio from: {url}")
     subprocess.run(cmd, check=True)
     return output_path
@@ -150,11 +164,22 @@ def parse_fliptop_metadata(metadata: dict) -> dict:
             battle_title = video_title[len(prefix):].strip()
             break
 
-    # Remove trailing event info after separators: " | ", " – ", " — "
+    # Strip everything after common separators — these are event/extra info suffixes
+    # e.g. "Davera vs Henz | Won Minutes Mindanao *FREESTYLE BATTLE*"
+    #      "Onaks vs Karisma – Isabuhay 2022"
     for sep in [" | ", " – ", " — "]:
         if sep in battle_title:
             battle_title = battle_title.split(sep, 1)[0].strip()
             break
+
+    # Handle " @ EventName" pattern
+    # e.g. "Poison13 vs Plaridhel @ Isabuhay 2023" → just "Poison13 vs Plaridhel"
+    if " @ " in battle_title:
+        battle_title = battle_title.split(" @ ", 1)[0].strip()
+
+    # Strip *LABEL* tags anywhere in battle title
+    # e.g. "*FREESTYLE BATTLE*" or "*TITLE MATCH*"
+    battle_title = re.sub(r"\*[^*]+\*", "", battle_title).strip()
 
     # --- Extract event name from description ---
     if description:
@@ -234,7 +259,12 @@ def parse_battle_participants(battle_title: str) -> dict:
     all_participants = []
 
     for side in sides:
-        members = [m.strip() for m in team_sep.split(side) if m.strip()]
+        members = [
+            # Strip any lingering "@ Event" suffix from participant names
+            m.split(" @ ")[0].strip()
+            for m in team_sep.split(side)
+            if m.strip()
+        ]
         teams.append(members)
         all_participants.extend(members)
 
@@ -283,13 +313,28 @@ def transcribe_and_diarize(audio_path: str, device: str = "cuda") -> list[dict]:
     print("[2/4] Transcribing audio with Whisper Large-v3...")
     model = whisperx.load_model("large-v3", device, compute_type=compute_type, language="tl")
     audio = whisperx.load_audio(audio_path)
-    result = model.transcribe(audio, batch_size=16)
+    result = model.transcribe(audio, batch_size=32)  # T4 has 16GB — 32 is safe
     del model
     _free_gpu(device)
 
     # ── Step 2: Align timestamps ──
     print("[3/4] Aligning timestamps...")
-    model_a, metadata = whisperx.load_align_model(language_code=result["language"], device=device)
+    lang = result["language"]
+
+    # WhisperX has no default alignment model for Tagalog ("tl") or some
+    # other languages. Check if the language is supported; if not, fall back
+    # to English which handles Tagalog/code-switched content well enough.
+    try:
+        from whisperx.alignment import DEFAULT_ALIGN_MODELS_TORCH, DEFAULT_ALIGN_MODELS_HF
+        supported = set(DEFAULT_ALIGN_MODELS_TORCH.keys()) | set(DEFAULT_ALIGN_MODELS_HF.keys())
+    except ImportError:
+        supported = {"en", "fr", "de", "es", "it", "ja", "zh", "nl", "uk", "pt"}
+
+    align_lang = lang if lang in supported else "en"
+    if align_lang != lang:
+        print(f"    ⚠ No alignment model for '{lang}', falling back to English...")
+
+    model_a, metadata = whisperx.load_align_model(language_code=align_lang, device=device)
     result = whisperx.align(
         result["segments"], model_a, metadata, audio, device,
         return_char_alignments=False,
@@ -375,23 +420,22 @@ def upload_to_supabase(
     if lines:
         supabase.table("lines").insert(lines).execute()
 
-    # Upsert emcees and link to battle
+    # Batch upsert emcees and link to battle (1 round-trip instead of N)
     if participants:
         print(f"  Creating/linking {len(participants)} emcees...")
-        for emcee_name in participants:
-            emcee_res = (
-                supabase.table("emcees")
-                .upsert({"name": emcee_name}, on_conflict="name")
-                .execute()
-            )
-            emcee_id = emcee_res.data[0]["id"]
-            try:
-                supabase.table("battle_participants").upsert(
-                    {"battle_id": battle_id, "emcee_id": emcee_id},
-                    on_conflict="battle_id,emcee_id",
-                ).execute()
-            except Exception:
-                pass  # Already linked
+        emcee_res = (
+            supabase.table("emcees")
+            .upsert([{"name": n} for n in participants], on_conflict="name")
+            .execute()
+        )
+        participant_rows = [
+            {"battle_id": battle_id, "emcee_id": e["id"]}
+            for e in emcee_res.data
+        ]
+        if participant_rows:
+            supabase.table("battle_participants").upsert(
+                participant_rows, on_conflict="battle_id,emcee_id"
+            ).execute()
 
     # Summary
     speakers = set(l["speaker_label"] for l in lines)

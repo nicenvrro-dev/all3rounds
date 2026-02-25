@@ -18,17 +18,18 @@ Usage:
 # ============================================================================
 
 import os
+import json
 import argparse
 import subprocess
 from datetime import datetime
 from dotenv import load_dotenv
-import yt_dlp
 
 # Reuse core logic from transcribe.py
 from transcribe import (
     supabase,
     SUPABASE_KEY,
     HF_TOKEN,
+    get_yt_dlp_cookies,
     parse_fliptop_metadata,
     transcribe_and_diarize,
     upload_to_supabase,
@@ -43,6 +44,12 @@ load_dotenv()
 CHANNEL_URL  = "https://www.youtube.com/@fliptopbattles/videos"
 DOWNLOAD_DIR = "audio_downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+# Common yt-dlp arguments for solving YouTube JS challenges
+YT_DLP_COMMON_ARGS = [
+    "--remote-components", "ejs:github",
+    "--extractor-args", "youtube:player-client=web",
+]
 
 
 # ============================================================================
@@ -85,6 +92,69 @@ def get_existing_youtube_ids() -> set[str]:
 
 
 # ============================================================================
+# yt-dlp Helpers (using subprocess for full CLI flag support)
+# ============================================================================
+
+def fetch_channel_videos(channel_url: str) -> list[dict]:
+    """Fetch flat video list from a YouTube channel using yt-dlp CLI."""
+    cmd = [
+        "yt-dlp",
+        "--flat-playlist",
+        "--dump-json",
+        "--quiet",
+    ] + get_yt_dlp_cookies() + [channel_url]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"  Warning: yt-dlp returned code {result.returncode}")
+        if result.stderr:
+            print(f"  {result.stderr[:300]}")
+
+    entries = []
+    for line in result.stdout.strip().split("\n"):
+        if line.strip():
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return entries
+
+
+def download_audio_and_metadata(yt_id: str, output_dir: str) -> dict | None:
+    """
+    Download audio from YouTube and return metadata, using subprocess.
+    Returns the video info dict or None on failure.
+    """
+    youtube_url = f"https://www.youtube.com/watch?v={yt_id}"
+    output_template = os.path.join(output_dir, f"{yt_id}.%(ext)s")
+
+    cmd = [
+        "yt-dlp",
+        "-x",
+        "--audio-format", "mp3",
+        "--audio-quality", "192K",
+        "--print-json",
+        "-o", output_template,
+    ] + YT_DLP_COMMON_ARGS + get_yt_dlp_cookies() + [youtube_url]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        stderr_snippet = result.stderr[:500] if result.stderr else "No error output"
+        print(f"  ⚠️ yt-dlp error: {stderr_snippet}")
+        return None
+
+    # Parse the JSON metadata from stdout
+    for line in reversed(result.stdout.strip().split("\n")):
+        if line.strip():
+            try:
+                return json.loads(line)
+            except json.JSONDecodeError:
+                continue
+    return None
+
+
+# ============================================================================
 # Filtering
 # ============================================================================
 
@@ -107,7 +177,7 @@ def run_pipeline(limit: int | None = None, fast_test: bool = False):
       1. Fetch existing battles from Supabase (for deduplication)
       2. List all videos from the FlipTop channel
       3. For each new battle video:
-         a. Download audio
+         a. Download audio + metadata via yt-dlp CLI
          b. (Optional) Crop to 180s for fast testing
          c. Parse metadata (title, event, date, emcees)
          d. Transcribe + diarize with WhisperX
@@ -122,16 +192,18 @@ def run_pipeline(limit: int | None = None, fast_test: bool = False):
 
     # ── Fetch channel video list ──
     print(f"\n[2] Fetching video list from {CHANNEL_URL}...")
-    with yt_dlp.YoutubeDL({"extract_flat": True, "quiet": True}) as ydl:
-        info = ydl.extract_info(CHANNEL_URL, download=False)
-        entries = info.get("entries", [])
+    entries = fetch_channel_videos(CHANNEL_URL)
     print(f"    Found {len(entries)} videos on channel.")
+
+    if not entries:
+        print("ERROR: Could not fetch any videos. Check cookies and network.")
+        return
 
     # ── Process each video ──
     processed_count = 0
 
     for idx, entry in enumerate(entries):
-        yt_id = entry["id"]
+        yt_id = entry.get("id", entry.get("url", ""))
         flat_title = entry.get("title", "Unknown Title")
 
         # Skip: already in database
@@ -154,29 +226,21 @@ def run_pipeline(limit: int | None = None, fast_test: bool = False):
         print(f"Processing [{processed_count}] Video {idx+1}/{len(entries)}: {flat_title}")
         print(f"{'='*60}")
 
-        audio_path = os.path.join(DOWNLOAD_DIR, f"{yt_id}.wav")
-        youtube_url = f"https://www.youtube.com/watch?v={yt_id}"
+        audio_path = os.path.join(DOWNLOAD_DIR, f"{yt_id}.mp3")
 
         try:
-            # ── Download audio & fetch full metadata ──
+            # ── Download audio & fetch full metadata via CLI ──
             print("  ⬇ Downloading audio...")
-            download_opts = {
-                "format": "bestaudio/best",
-                "postprocessors": [{
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "wav",
-                    "preferredquality": "192",
-                }],
-                "outtmpl": os.path.join(DOWNLOAD_DIR, f"{yt_id}.%(ext)s"),
-                "quiet": True,
-            }
-            with yt_dlp.YoutubeDL(download_opts) as ydl_dl:
-                video_meta = ydl_dl.extract_info(youtube_url, download=True)
+            video_meta = download_audio_and_metadata(yt_id, DOWNLOAD_DIR)
+
+            if video_meta is None:
+                print(f"  ❌ Failed to download {yt_id}, skipping.")
+                continue
 
             # ── Fast test mode: crop audio to 180 seconds ──
             if fast_test:
                 print("  ✂ [FAST TEST] Cropping audio to 180 seconds...")
-                cropped = audio_path.replace(".wav", "_cropped.wav")
+                cropped = audio_path.replace(".mp3", "_cropped.mp3")
                 subprocess.run(
                     ["ffmpeg", "-y", "-i", audio_path, "-t", "180", "-c", "copy", cropped],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
