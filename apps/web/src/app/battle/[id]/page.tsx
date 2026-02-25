@@ -242,6 +242,22 @@ const LineItem = memo(
               onCheckedChange={() => onToggleSelect(line.id)}
               className="mt-1 h-3.5 w-3.5 shrink-0"
             />
+
+            {/* Timestamp Seeker (Available even in edit mode) */}
+            <button
+              onClick={() => onSeek(line.start_time)}
+              className="mt-1 flex min-w-[28px] items-center justify-center shrink-0 group/seek outline-none"
+              title={`Seek to ${formatTime(line.start_time)}`}
+            >
+              {isActive ? (
+                <Play className="h-2.5 w-2.5 fill-primary text-primary animate-pulse" />
+              ) : (
+                <span className="font-mono text-[9px] tabular-nums text-muted-foreground/40 transition-colors group-hover/seek:text-primary">
+                  {formatTime(line.start_time)}
+                </span>
+              )}
+            </button>
+
             {inlineEditingId === line.id ? (
               <Textarea
                 autoFocus
