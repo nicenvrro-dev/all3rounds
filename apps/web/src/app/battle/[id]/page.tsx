@@ -196,7 +196,7 @@ const LineItem = memo(
     isLastClicked: boolean;
     inlineEditingId: number | null;
     inlineContent: string;
-    onToggleSelect: (id: number) => void;
+    onToggleSelect: (id: number, isShift?: boolean) => void;
     onStartInlineEdit: (line: BattleLine) => void;
     onInlineSave: (id: number, moveToNext?: boolean) => void;
     onSetInlineEditingId: (id: number | null) => void;
@@ -239,7 +239,11 @@ const LineItem = memo(
             )}
             <Checkbox
               checked={isSelected}
-              onCheckedChange={() => onToggleSelect(line.id)}
+              onCheckedChange={() => {}} // Controlled via onClick for Shift+Click support
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSelect(line.id, e.shiftKey);
+              }}
               className="mt-1 h-3.5 w-3.5 shrink-0"
             />
 
@@ -675,14 +679,41 @@ export default function BattlePage() {
     });
   }, []);
 
-  const toggleSelect = useCallback((id: number) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const toggleSelect = useCallback(
+    (id: number, isShift?: boolean) => {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+
+        if (isShift && lastClickedLineId !== null && data) {
+          const currentIndex = data.lines.findIndex((l) => l.id === id);
+          const lastIndex = data.lines.findIndex(
+            (l) => l.id === lastClickedLineId,
+          );
+
+          if (currentIndex !== -1 && lastIndex !== -1) {
+            const start = Math.min(currentIndex, lastIndex);
+            const end = Math.max(currentIndex, lastIndex);
+            const linesToSelect = data.lines.slice(start, end + 1);
+
+            // If the start line was being selected, select range.
+            // If it was being deselected, deselect range.
+            const shouldSelect = !prev.has(id);
+            linesToSelect.forEach((l) => {
+              if (shouldSelect) next.add(l.id);
+              else next.delete(l.id);
+            });
+            return next;
+          }
+        }
+
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      setLastClickedLineId(id);
+    },
+    [data, lastClickedLineId],
+  );
 
   const toggleSelectTurn = useCallback(
     (turnLines: BattleLine[]) => {
@@ -697,6 +728,30 @@ export default function BattlePage() {
         }
         return next;
       });
+      if (turnLines.length > 0) {
+        setLastClickedLineId(turnLines[turnLines.length - 1].id);
+      }
+    },
+    [selectedIds],
+  );
+
+  const toggleSelectRound = useCallback(
+    (roundTurns: Turn[]) => {
+      const roundLines = roundTurns.flatMap((t) => t.lines);
+      const roundIds = roundLines.map((l) => l.id);
+      const allSelected = roundIds.every((id) => selectedIds.has(id));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (allSelected) {
+          roundIds.forEach((id) => next.delete(id));
+        } else {
+          roundIds.forEach((id) => next.add(id));
+        }
+        return next;
+      });
+      if (roundLines.length > 0) {
+        setLastClickedLineId(roundLines[roundLines.length - 1].id);
+      }
     },
     [selectedIds],
   );
@@ -1202,7 +1257,11 @@ export default function BattlePage() {
                         <span className="text-foreground/70 font-bold border rounded px-1 py-0.5 text-[7px] border-border bg-background shadow-xs">
                           ESC
                         </span>{" "}
-                        CANCEL
+                        CANCEL •{" "}
+                        <span className="text-primary/70 font-bold">
+                          SHIFT+CLICK
+                        </span>{" "}
+                        SELECT RANGE
                       </span>
                     </p>
                   </div>
@@ -1227,14 +1286,20 @@ export default function BattlePage() {
                       0,
                     );
 
+                    const roundAllSelected =
+                      editMode &&
+                      group.turns.every((t: Turn) =>
+                        t.lines.every((l: BattleLine) => selectedIds.has(l.id)),
+                      );
+
                     return (
                       <div key={gi}>
                         {/* Round header (Sticky within scroll area) */}
-                        <div className="sticky top-0 z-20 bg-background/95 py-1 backdrop-blur-sm">
+                        <div className="sticky top-0 z-20 flex items-center gap-1 bg-background/95 py-1 backdrop-blur-sm">
                           <Button
                             variant="ghost"
                             onClick={() => toggleRoundCollapse(gi)}
-                            className="h-auto w-full justify-start gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted/50"
+                            className="h-auto flex-1 justify-start gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted/50"
                           >
                             {isRoundCollapsed ? (
                               <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -1248,6 +1313,20 @@ export default function BattlePage() {
                               {lineCount}
                             </span>
                           </Button>
+                          {editMode && (
+                            <div className="flex items-center gap-2 pr-2">
+                              <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-tighter hidden sm:block">
+                                Select Round
+                              </span>
+                              <Checkbox
+                                checked={roundAllSelected}
+                                onCheckedChange={() =>
+                                  toggleSelectRound(group.turns)
+                                }
+                                className="h-4 w-4"
+                              />
+                            </div>
+                          )}
                         </div>
 
                         {/* Round children */}
