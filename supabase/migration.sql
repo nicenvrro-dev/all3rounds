@@ -140,7 +140,8 @@ BEGIN
     OR l.content % search_term
     OR COALESCE(e.name, '') % search_term
     OR COALESCE(b.title, '') % search_term
-  ORDER BY rank DESC;
+  ORDER BY rank DESC
+  LIMIT 500;
 END;
 $$ LANGUAGE plpgsql;
 

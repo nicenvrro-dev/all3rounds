@@ -5,13 +5,22 @@ import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q")?.trim();
-  const page = parseInt(searchParams.get("page") || "1", 10);
+  const rawPage = parseInt(searchParams.get("page") || "1", 10);
+  const page = Number.isFinite(rawPage) && rawPage >= 1 ? rawPage : 1;
   const limit = 20;
   const offset = (page - 1) * limit;
 
-  if (!query) {
+  if (!query || query.length < 2 || query.length > 200) {
     return NextResponse.json(
-      { error: "Missing search query" },
+      { error: "Search query must be between 2 and 200 characters." },
+      { status: 400 },
+    );
+  }
+
+  const maxPage = 50;
+  if (page > maxPage) {
+    return NextResponse.json(
+      { error: "Page number too large." },
       { status: 400 },
     );
   }
