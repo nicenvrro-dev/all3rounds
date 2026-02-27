@@ -506,6 +506,13 @@ def main():
 
     youtube_id = extract_youtube_id(args.url)
 
+    # --- Check for Excluded Status ---
+    # If the video is already in the DB as 'excluded', skip immediately.
+    existing_battle = supabase.table("battles").select("status").eq("youtube_id", youtube_id).execute()
+    if existing_battle.data and existing_battle.data[0].get("status") == "excluded":
+        print(f"\n[SKIP] Video {youtube_id} is marked as 'excluded' (not a battle). Skipping pipeline.")
+        return
+
     # --- Resolve metadata ---
     title        = args.title
     event_name   = args.event

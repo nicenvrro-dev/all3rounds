@@ -204,6 +204,7 @@ function BattlesDirectory() {
         const { data, error } = await supabase
           .from("battles")
           .select("*")
+          .neq("status", "excluded")
           .order("event_date", { ascending: false });
 
         if (error) throw error;

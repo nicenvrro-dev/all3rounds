@@ -110,3 +110,56 @@ export async function PATCH(
     );
   }
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+
+    // 1. Check permission
+    const { error: permError } = await requirePermission("battles:delete");
+    if (permError) {
+      return NextResponse.json(
+        { error: permError.message },
+        { status: permError.status },
+      );
+    }
+
+    // 2. Mark as excluded and wipe heavy data using Admin Client
+    const supabaseAdmin = createAdminClient();
+
+    // First, clear the lines and participants (the heavy data)
+    await supabaseAdmin.from("lines").delete().eq("battle_id", id);
+    await supabaseAdmin
+      .from("battle_participants")
+      .delete()
+      .eq("battle_id", id);
+
+    // Then, update the status to 'excluded' so the pipeline skips it in the future
+    const { error } = await supabaseAdmin
+      .from("battles")
+      .update({ status: "excluded" })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Battle exclusion failed:", error);
+      return NextResponse.json(
+        { error: `Database error: ${error.message}` },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Battle excluded and space cleared.",
+    });
+  } catch (err: any) {
+    console.error("DELETE /api/battles/[id] error:", err);
+    return NextResponse.json(
+      { error: err.message || "Internal Server Error" },
+      { status: 500 },
+    );
+  }
+}

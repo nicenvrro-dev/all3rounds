@@ -32,6 +32,7 @@ import {
   Info,
   Maximize2,
   Minimize2,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusBadge, STATUS_CONFIG } from "@/components/StatusBadge";
@@ -409,6 +410,7 @@ export default function BattlePage() {
   const canDelete = userRole === "superadmin";
   const [batchSaving, setBatchSaving] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [deletingBattle, setDeletingBattle] = useState(false);
 
   // -- Collapsible UI State --
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(
@@ -658,6 +660,30 @@ export default function BattlePage() {
       alert(err.message || "Failed to update status");
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleDeleteBattle = async () => {
+    if (!canDelete) return;
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this entire battle and all its transcriptions? This cannot be undone.",
+      )
+    )
+      return;
+
+    setDeletingBattle(true);
+    try {
+      const res = await fetch(`/api/battles/${battleId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to delete battle");
+      }
+      router.push("/battles");
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "An error occurred while deleting the battle.");
+      setDeletingBattle(false);
     }
   };
 
@@ -1161,6 +1187,18 @@ export default function BattlePage() {
                     <ExternalLink className="h-3 w-3" />
                     Watch on YouTube
                   </a>
+                  {canDelete && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={deletingBattle}
+                      onClick={handleDeleteBattle}
+                      className="h-8 w-8 p-0 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      title="Delete entire battle"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
