@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requirePermission, hasPermission } from "@/lib/auth";
-import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import {
+  checkRateLimit,
+  getRateLimitHeaders,
+} from "@/lib/rate-limit";
 
 // Helper for basic CSRF protection
 function verifyCsrf(request: NextRequest): boolean {
@@ -36,12 +39,15 @@ export async function PATCH(request: NextRequest) {
   const { user, role } = auth;
 
   // ── Rate limit ──
-  const { allowed } = checkRateLimit(`edit:${user.id}`, RATE_LIMITS.edit);
-  if (!allowed) {
-    return NextResponse.json(
-      { error: "Edit limit reached. Please try again later." },
-      { status: 429 },
-    );
+  // SKIP rate limiting for superadmins
+  if (role !== "superadmin") {
+    const rateRes = await checkRateLimit(`edit:${user.id}`, "edit");
+    if (!rateRes.allowed) {
+      return NextResponse.json(
+        { error: "Edit limit reached. Please try again later." },
+        { status: 429, headers: getRateLimitHeaders(rateRes) },
+      );
+    }
   }
 
   const adminClient = createAdminClient();

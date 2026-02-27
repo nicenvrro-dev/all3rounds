@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import {
+  checkRateLimit,
+  getRateLimitHeaders,
+} from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -8,12 +11,15 @@ export async function GET(request: NextRequest) {
 
   // --- Rate limiting ---
   const rateLimitKey = `emcees:${request.headers.get("x-forwarded-for") || "unknown"}`;
-  const { allowed } = checkRateLimit(rateLimitKey, RATE_LIMITS.anonymous);
+  const rateRes = await checkRateLimit(rateLimitKey, "anonymous");
 
-  if (!allowed) {
+  if (!rateRes.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Please wait a moment." },
-      { status: 429 },
+      {
+        status: 429,
+        headers: getRateLimitHeaders(rateRes),
+      },
     );
   }
 

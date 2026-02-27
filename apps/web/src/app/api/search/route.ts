@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import {
+  checkRateLimit,
+  getRateLimitHeaders,
+} from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -31,23 +34,32 @@ export async function GET(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const rateLimitKey = user
-    ? `user:${user.id}`
-    : `ip:${request.headers.get("x-forwarded-for") || "unknown"}`;
-  const rateLimitConfig = user
-    ? RATE_LIMITS.authenticated
-    : RATE_LIMITS.anonymous;
+  let isSuperadmin = false;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    isSuperadmin = profile?.role === "superadmin";
+  }
 
-  const { allowed, remaining } = checkRateLimit(rateLimitKey, rateLimitConfig);
+  if (!isSuperadmin) {
+    const rateLimitKey = user
+      ? `user:${user.id}`
+      : `ip:${request.headers.get("x-forwarded-for") || "unknown"}`;
 
-  if (!allowed) {
-    return NextResponse.json(
-      { error: "Too many requests. Please wait a moment and try again." },
-      {
-        status: 429,
-        headers: { "X-RateLimit-Remaining": remaining.toString() },
-      },
-    );
+    const rateRes = await checkRateLimit(rateLimitKey, "search");
+
+    if (!rateRes.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a moment and try again." },
+        {
+          status: 429,
+          headers: getRateLimitHeaders(rateRes),
+        },
+      );
+    }
   }
 
   // --- Search ---

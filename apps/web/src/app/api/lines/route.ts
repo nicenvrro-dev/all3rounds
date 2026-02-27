@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/auth";
-import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import {
+  checkRateLimit,
+  getRateLimitHeaders,
+} from "@/lib/rate-limit";
 
 // Helper for basic CSRF protection
 function verifyCsrf(request: NextRequest): boolean {
@@ -33,15 +36,17 @@ export async function POST(request: NextRequest) {
       { status: auth.error.status },
     );
   }
-  const { user } = auth;
+  const { user, role } = auth;
 
   // ── Rate limit ──
-  const { allowed } = checkRateLimit(`add:${user.id}`, RATE_LIMITS.edit);
-  if (!allowed) {
-    return NextResponse.json(
-      { error: "Action limit reached. Please try again later." },
-      { status: 429 },
-    );
+  if (role !== "superadmin") {
+    const rateRes = await checkRateLimit(`add:${user.id}`, "add_line");
+    if (!rateRes.allowed) {
+      return NextResponse.json(
+        { error: "Action limit reached. Please try again later." },
+        { status: 429, headers: getRateLimitHeaders(rateRes) },
+      );
+    }
   }
 
   const adminClient = createAdminClient();
@@ -118,15 +123,17 @@ export async function PATCH(request: NextRequest) {
       { status: auth.error.status },
     );
   }
-  const { user } = auth;
+  const { user, role } = auth;
 
   // ── Rate limit ──
-  const { allowed } = checkRateLimit(`edit:${user.id}`, RATE_LIMITS.edit);
-  if (!allowed) {
-    return NextResponse.json(
-      { error: "Edit limit reached. Please try again later." },
-      { status: 429 },
-    );
+  if (role !== "superadmin") {
+    const rateRes = await checkRateLimit(`edit:${user.id}`, "edit");
+    if (!rateRes.allowed) {
+      return NextResponse.json(
+        { error: "Edit limit reached. Please try again later." },
+        { status: 429, headers: getRateLimitHeaders(rateRes) },
+      );
+    }
   }
 
   const adminClient = createAdminClient();

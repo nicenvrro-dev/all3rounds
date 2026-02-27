@@ -1,52 +1,154 @@
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+
 /**
- * Simple in-memory rate limiter.
- * No Redis needed — works on Vercel serverless (per-instance).
- * For production at scale, swap to Upstash Redis rate limiting.
+ * PRODUCTION RATE LIMITER (Upstash Redis)
+ * ---------------------------------------
+ * This works across all Vercel serverless instances by using a central Redis store.
+ *
+ * LOCAL FALLBACK: If UPSTASH_REDIS_REST_URL is missing, it falls back to
+ * a simple in-memory Map (for local development).
  */
 
-const rateMap = new Map<string, { count: number; resetAt: number }>();
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-type RateLimitConfig = {
-  maxRequests: number;
-  windowMs: number;
-};
+// Initialize Redis only if keys exist
+const redis =
+  redisUrl && redisToken
+    ? new Redis({
+        url: redisUrl,
+        token: redisToken,
+      })
+    : null;
 
 export const RATE_LIMITS = {
-  anonymous: { maxRequests: 20, windowMs: 60 * 1000 } as RateLimitConfig,
-  authenticated: { maxRequests: 60, windowMs: 60 * 1000 } as RateLimitConfig,
-  // Edit limits: 100 operations per hour (batch counts as 1 operation)
-  edit: { maxRequests: 100, windowMs: 60 * 60 * 1000 } as RateLimitConfig,
+  // General browsing / API access
+  anonymous: { maxRequests: 20, window: "60 s" },
+  authenticated: { maxRequests: 60, window: "60 s" },
+
+  // Search (heavier DB queries)
+  search: { maxRequests: 30, window: "60 s" },
+
+  // Editing / Mutations (admin actions)
+  edit: { maxRequests: 100, window: "1 h" },
+  add_line: { maxRequests: 50, window: "1 h" },
 };
 
-export function checkRateLimit(
+// Create limiters for each type if Redis is available
+const limiters = redis
+  ? {
+      anonymous: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(
+          RATE_LIMITS.anonymous.maxRequests,
+          RATE_LIMITS.anonymous.window as any,
+        ),
+      }),
+      authenticated: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(
+          RATE_LIMITS.authenticated.maxRequests,
+          RATE_LIMITS.authenticated.window as any,
+        ),
+      }),
+      search: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(
+          RATE_LIMITS.search.maxRequests,
+          RATE_LIMITS.search.window as any,
+        ),
+      }),
+      edit: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(
+          RATE_LIMITS.edit.maxRequests,
+          RATE_LIMITS.edit.window as any,
+        ),
+      }),
+      add_line: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(
+          RATE_LIMITS.add_line.maxRequests,
+          RATE_LIMITS.add_line.window as any,
+        ),
+      }),
+    }
+  : null;
+
+// --- LOCAL FALLBACK LOGIC ---
+const localRateMap = new Map<string, { count: number; resetAt: number }>();
+
+/**
+ * Main function to check rate limits.
+ */
+export async function checkRateLimit(
   key: string,
-  config: RateLimitConfig,
-): { allowed: boolean; remaining: number } {
+  type: keyof typeof RATE_LIMITS,
+): Promise<{
+  allowed: boolean;
+  remaining: number;
+  limit: number;
+  reset: number;
+}> {
+  const config = RATE_LIMITS[type];
+  const windowMs = config.window.includes("h") ? 60 * 60 * 1000 : 60 * 1000;
+
+  // USE PRODUCTION REDIS
+  if (limiters && limiters[type]) {
+    try {
+      const { success, remaining, limit, reset } =
+        await limiters[type].limit(key);
+      return { allowed: success, remaining, limit, reset };
+    } catch (error) {
+      console.error("Upstash Redis error:", error);
+    }
+  }
+
+  // USE LOCAL MEMORY FALLBACK
   const now = Date.now();
-  const entry = rateMap.get(key);
+  const entry = localRateMap.get(`${type}:${key}`);
 
   if (!entry || now > entry.resetAt) {
-    rateMap.set(key, { count: 1, resetAt: now + config.windowMs });
-    return { allowed: true, remaining: config.maxRequests - 1 };
+    const resetAt = now + windowMs;
+    localRateMap.set(`${type}:${key}`, { count: 1, resetAt });
+    return {
+      allowed: true,
+      remaining: config.maxRequests - 1,
+      limit: config.maxRequests,
+      reset: resetAt,
+    };
   }
 
   if (entry.count >= config.maxRequests) {
-    return { allowed: false, remaining: 0 };
+    return {
+      allowed: false,
+      remaining: 0,
+      limit: config.maxRequests,
+      reset: entry.resetAt,
+    };
   }
 
   entry.count++;
-  return { allowed: true, remaining: config.maxRequests - entry.count };
+  return {
+    allowed: true,
+    remaining: config.maxRequests - entry.count,
+    limit: config.maxRequests,
+    reset: entry.resetAt,
+  };
 }
 
-// Clean up stale entries every 5 minutes
-setInterval(
-  () => {
-    const now = Date.now();
-    for (const [key, entry] of rateMap) {
-      if (now > entry.resetAt) {
-        rateMap.delete(key);
-      }
-    }
-  },
-  5 * 60 * 1000,
-);
+/**
+ * Helper to generate standard Rate Limit headers
+ */
+export function getRateLimitHeaders(res: {
+  remaining: number;
+  limit: number;
+  reset: number;
+}) {
+  return {
+    "X-RateLimit-Limit": res.limit.toString(),
+    "X-RateLimit-Remaining": res.remaining.toString(),
+    "X-RateLimit-Reset": Math.ceil(res.reset / 1000).toString(),
+  };
+}

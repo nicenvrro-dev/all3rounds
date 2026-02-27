@@ -11,6 +11,7 @@ import {
   Fragment,
 } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import Link from "next/link";
 import Image from "next/image";
@@ -397,6 +398,7 @@ export default function BattlePage() {
   const [lastClickedLineId, setLastClickedLineId] = useState<number | null>(
     null,
   );
+  const { toast } = useToast();
   const [editingLine, setEditingLine] = useState<BattleLine | null>(null);
   const [addingLine, setAddingLine] = useState(false);
   const [addingLineData, setAddingLineData] = useState<{
@@ -658,7 +660,14 @@ export default function BattlePage() {
       );
     } catch (err: any) {
       console.error(err);
-      alert(err.message || "Failed to update status");
+      const isRateLimit = err.message?.includes("429") || err.status === 429;
+      toast({
+        variant: isRateLimit ? "default" : "destructive",
+        title: isRateLimit ? "Rate Limit" : "Error",
+        description: isRateLimit
+          ? "Too many requests. Please try again later."
+          : err.message || "Failed to update status",
+      });
     } finally {
       setUpdatingStatus(false);
     }
@@ -683,7 +692,14 @@ export default function BattlePage() {
       router.push("/battles");
     } catch (err: any) {
       console.error(err);
-      alert(err.message || "An error occurred while deleting the battle.");
+      const isRateLimit = err.message?.includes("429") || err.status === 429;
+      toast({
+        variant: isRateLimit ? "default" : "destructive",
+        title: isRateLimit ? "Rate Limit" : "Error",
+        description: isRateLimit
+          ? "Too many requests. Please try again later."
+          : err.message || "An error occurred while deleting the battle.",
+      });
       setDeletingBattle(false);
     }
   };
@@ -855,7 +871,14 @@ export default function BattlePage() {
       });
       if (!res.ok) {
         const d = await res.json();
-        alert(d.error || "Batch operation failed.");
+        const isRateLimit = res.status === 429;
+        toast({
+          variant: isRateLimit ? "default" : "destructive",
+          title: isRateLimit ? "Rate Limit" : "Action Failed",
+          description: isRateLimit
+            ? "Too many requests. Please try again later."
+            : d.error || "Batch operation failed.",
+        });
         return;
       }
       if (action === "delete") {
@@ -913,7 +936,16 @@ export default function BattlePage() {
             value: inlineContent,
           }),
         });
-        if (!res.ok) throw new Error("Failed to save");
+        if (!res.ok) {
+          if (res.status === 429) {
+            toast({
+              title: "Rate Limit",
+              description: "Too many requests. Please try again later.",
+            });
+          } else {
+            throw new Error("Failed to save");
+          }
+        }
 
         if (moveToNext) focusNextLine(id);
       } catch (err) {
