@@ -379,7 +379,7 @@ function BattlesDirectory() {
           value={statusFilter}
           onValueChange={(v) => updateSearch({ status: v })}
         >
-          <SelectTrigger className="w-full sm:w-[140px] bg-card/50">
+          <SelectTrigger className="w-full sm:w-[150px] bg-muted/20 border-border/50 h-10 rounded-xl focus:ring-primary/5">
             <SelectValue placeholder="All Status" />
           </SelectTrigger>
           <SelectContent>
@@ -407,7 +407,7 @@ function BattlesDirectory() {
           value={yearFilter}
           onValueChange={(v) => updateSearch({ year: v })}
         >
-          <SelectTrigger className="w-full sm:w-[100px] bg-card/50">
+          <SelectTrigger className="w-full sm:w-[120px] bg-muted/20 border-border/50 h-10 rounded-xl focus:ring-primary/5 text-white">
             <SelectValue placeholder="All Years" />
           </SelectTrigger>
           <SelectContent>
@@ -421,17 +421,16 @@ function BattlesDirectory() {
         </Select>
       </div>
 
-      {/* Sort Filter */}
-      <div className="space-y-1.5 flex-1">
+      <div className="space-y-2 flex-1">
         {mobile && (
           <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">
             Sort By
           </label>
         )}
         <Select value={sortBy} onValueChange={(v) => updateSearch({ sort: v })}>
-          <SelectTrigger className="w-full sm:w-[130px] bg-card/50">
+          <SelectTrigger className="w-full sm:w-[140px] bg-muted/20 border-border/50 h-10 rounded-xl focus:ring-primary/5">
             <div className="flex items-center gap-2">
-              <ArrowUpDown className="h-3.5 w-3.5" />
+              <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/60" />
               <SelectValue placeholder="Sort" />
             </div>
           </SelectTrigger>
@@ -447,10 +446,10 @@ function BattlesDirectory() {
           variant="ghost"
           size="sm"
           onClick={clearFilters}
-          className="h-9 px-2 text-muted-foreground hover:text-foreground"
+          className="h-10 px-4 text-muted-foreground hover:text-foreground hover:bg-muted/30 rounded-xl"
         >
           <X className="mr-2 h-4 w-4" />
-          Clear
+          Clear Filters
         </Button>
       )}
     </div>
@@ -476,44 +475,39 @@ function BattlesDirectory() {
 
           {/* Search & Filters Container */}
           <div className="flex items-center gap-2 sm:gap-3 w-full lg:w-auto">
-            {/* Mobile Filter Trigger (Left Side) */}
+            {/* Search Input */}
+            <div className="relative flex-1 lg:w-[320px]">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40" />
+              <input
+                type="text"
+                placeholder="Search battles or events..."
+                className="w-full h-11 rounded-2xl border border-border/50 bg-muted/10 pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground/30 outline-none transition-all focus:border-primary/40 focus:bg-muted/20 focus:ring-4 focus:ring-primary/5"
+                value={filter}
+                onChange={(e) => updateSearch({ q: e.target.value })}
+              />
+            </div>
+
+            {/* Mobile Filter Trigger (Right Side) */}
             <Sheet>
               <SheetTrigger asChild>
                 <Button
                   variant="outline"
                   size="icon"
-                  className="lg:hidden h-10 w-10 shrink-0 bg-muted/20 border-border/50"
+                  className="lg:hidden h-11 w-11 shrink-0 bg-muted/10 border-border/50 rounded-2xl hover:bg-muted/20 transition-all"
                 >
-                  <ListFilter className="h-4 w-4" />
+                  <ListFilter className="h-5 w-5 text-muted-foreground/60" />
                 </Button>
               </SheetTrigger>
               <SheetContent
                 side="bottom"
-                className="h-[60vh] rounded-t-[2.5rem] border-t border-border/10 bg-background/95 backdrop-blur-xl p-8 pt-10"
+                className="h-auto max-h-[70vh] border-t border-border/10 bg-background/95 backdrop-blur-3xl p-6 pb-10 shadow-2xl"
               >
-                <div className="mx-auto mb-8 h-1.5 w-12 rounded-full bg-muted/40" />
-                <SheetHeader className="mb-10 text-left">
-                  <SheetTitle className="text-2xl font-black uppercase tracking-tighter italic">
-                    Filter Archive
-                  </SheetTitle>
-                </SheetHeader>
-                <div className="mt-4">
+                <SheetTitle className="sr-only">Filters</SheetTitle>
+                <div className="mt-2">
                   <FilterContent mobile />
                 </div>
               </SheetContent>
             </Sheet>
-
-            {/* Search Input */}
-            <div className="relative flex-1 lg:w-[320px]">
-              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
-              <input
-                type="text"
-                placeholder="Search battles or events..."
-                className="w-full h-10 rounded-xl border border-border/50 bg-muted/20 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground/40 outline-none transition-all focus:border-primary/50 focus:bg-background focus:ring-4 focus:ring-primary/5"
-                value={filter}
-                onChange={(e) => updateSearch({ q: e.target.value })}
-              />
-            </div>
 
             {/* Desktop Filters (Always Right) */}
             <div className="hidden lg:block ml-2">
