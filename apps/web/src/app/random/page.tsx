@@ -19,11 +19,47 @@ import {
 import Link from "next/link";
 import { StatusBadge } from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function RandomLineSkeleton() {
+  return (
+    <div className="grid gap-8 lg:grid-cols-[2fr_1fr] items-start animate-in fade-in duration-500">
+      {/* Left Column: Video */}
+      <div className="flex flex-col gap-4">
+        <div className="bg-card border rounded-xl overflow-hidden shadow-sm">
+          <Skeleton className="aspect-video w-full rounded-none" />
+          <div className="p-4 sm:p-5 flex flex-col gap-4">
+            <Skeleton className="h-7 w-2/3" />
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <Skeleton className="h-4 w-24" />
+              <div className="h-1 w-1 rounded-full bg-border" />
+              <Skeleton className="h-5 w-16 rounded-full" />
+              <div className="h-1 w-1 rounded-full bg-border" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Column: Content/Editor */}
+      <div className="w-full space-y-6">
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="h-4 w-20 rounded-full" />
+          </div>
+          <Skeleton className="h-[140px] w-full rounded-xl" />
+        </div>
+        <Skeleton className="h-24 w-full rounded-xl" />
+      </div>
+    </div>
+  );
 }
 
 export default function RandomPage() {
@@ -255,9 +291,7 @@ export default function RandomPage() {
         </div>
 
         {loading ? (
-          <div className="h-[60vh] flex items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-r-transparent"></div>
-          </div>
+          <RandomLineSkeleton />
         ) : error && !line ? (
           <div className="h-[60vh] flex flex-col items-center justify-center text-center">
             <p className="text-red-500 mb-4">{error}</p>

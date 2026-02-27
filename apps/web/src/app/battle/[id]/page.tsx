@@ -17,6 +17,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Pencil,
   X,
@@ -991,14 +992,14 @@ export default function BattlePage() {
           <div className="flex h-full min-h-0 flex-col gap-6 pt-4 lg:grid lg:grid-cols-12 lg:gap-8 lg:pt-6">
             {/* Left Column: Video Skeleton */}
             <div className="lg:col-span-7 xl:col-span-8">
-              <div className="mb-4 h-3 w-24 rounded bg-muted animate-pulse" />
-              <div className="aspect-video w-full rounded-xl bg-muted animate-pulse shadow-sm" />
+              <Skeleton className="mb-4 h-3 w-24" />
+              <Skeleton className="aspect-video w-full rounded-xl shadow-sm" />
               <div className="mt-6 space-y-4 px-2">
-                <div className="h-8 w-2/3 rounded-lg bg-muted animate-pulse" />
+                <Skeleton className="h-8 w-2/3 rounded-lg" />
                 <div className="flex gap-4">
-                  <div className="h-4 w-32 rounded bg-muted animate-pulse" />
-                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
-                  <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-20" />
                 </div>
               </div>
             </div>
@@ -1007,20 +1008,20 @@ export default function BattlePage() {
             <div className="flex flex-1 flex-col overflow-hidden pb-4 lg:col-span-5 lg:h-full lg:pb-6 xl:col-span-4">
               <div className="mb-4 flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-muted animate-pulse" />
-                  <div className="h-3 w-20 rounded bg-muted animate-pulse" />
+                  <Skeleton className="h-3 w-3 rounded-full" />
+                  <Skeleton className="h-3 w-20" />
                 </div>
-                <div className="h-7 w-16 rounded-md bg-muted animate-pulse" />
+                <Skeleton className="h-7 w-16 rounded-md" />
               </div>
               <div className="flex-1 space-y-6 overflow-hidden pr-2">
                 {[...Array(3)].map((_, ri) => (
                   <div key={ri} className="space-y-3">
-                    <div className="h-5 w-32 rounded bg-muted/60 animate-pulse" />
+                    <Skeleton className="h-5 w-32" />
                     <div className="ml-4 space-y-2 border-l-2 border-muted/20 pl-4">
                       {[...Array(4)].map((_, li) => (
                         <div key={li} className="flex gap-3">
-                          <div className="h-4 w-8 rounded bg-muted/40 animate-pulse" />
-                          <div className="h-4 flex-1 rounded bg-muted/40 animate-pulse" />
+                          <Skeleton className="h-4 w-8" />
+                          <Skeleton className="h-4 flex-1" />
                         </div>
                       ))}
                     </div>

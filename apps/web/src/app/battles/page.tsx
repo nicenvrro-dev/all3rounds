@@ -37,6 +37,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // ============================================================================
 // Types
@@ -528,17 +529,17 @@ function BattlesDirectory() {
           <div className="space-y-10">
             {[...Array(2)].map((_, gi) => (
               <div key={gi} className="space-y-4">
-                <div className="h-6 w-40 animate-pulse rounded bg-muted" />
+                <Skeleton className="h-6 w-40" />
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {[...Array(4)].map((_, i) => (
                     <div
                       key={i}
-                      className="animate-pulse overflow-hidden rounded-lg border border-border"
+                      className="overflow-hidden rounded-lg border border-border"
                     >
-                      <div className="aspect-video w-full bg-muted" />
+                      <Skeleton className="aspect-video w-full rounded-none" />
                       <div className="space-y-2 p-3.5">
-                        <div className="h-4 w-3/4 rounded bg-muted" />
-                        <div className="h-3 w-1/2 rounded bg-muted" />
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-1/2" />
                       </div>
                     </div>
                   ))}
