@@ -3,7 +3,28 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { requirePermission, hasPermission } from "@/lib/auth";
 import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
+// Helper for basic CSRF protection
+function verifyCsrf(request: NextRequest): boolean {
+  const origin = request.headers.get("origin");
+  const host = request.headers.get("host");
+  if (!origin || !host) return true;
+  try {
+    const originHost = new URL(origin).host;
+    return originHost === host;
+  } catch {
+    return false;
+  }
+}
+
 export async function PATCH(request: NextRequest) {
+  // ── CSRF Check ──
+  if (!verifyCsrf(request)) {
+    return NextResponse.json(
+      { error: "Invalid request origin." },
+      { status: 403 },
+    );
+  }
+
   // ── Auth & Permission Check (batch edit requires admin+) ──
   const auth = await requirePermission("lines:batch_edit");
   if (auth.error) {

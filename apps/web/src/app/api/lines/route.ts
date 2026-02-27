@@ -3,7 +3,28 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/auth";
 import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
+// Helper for basic CSRF protection
+function verifyCsrf(request: NextRequest): boolean {
+  const origin = request.headers.get("origin");
+  const host = request.headers.get("host");
+  if (!origin || !host) return true;
+  try {
+    const originHost = new URL(origin).host;
+    return originHost === host;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
+  // ── CSRF Check ──
+  if (!verifyCsrf(request)) {
+    return NextResponse.json(
+      { error: "Invalid request origin." },
+      { status: 403 },
+    );
+  }
+
   // ── Auth & Permission Check ──
   const auth = await requirePermission("lines:edit");
   if (auth.error) {
@@ -28,6 +49,18 @@ export async function POST(request: NextRequest) {
   const { battle_id, content, start_time, end_time, emcee_id, round_number } =
     body;
 
+  // Validation: Check content length
+  if (
+    typeof content !== "string" ||
+    content.length === 0 ||
+    content.length > 5000
+  ) {
+    return NextResponse.json(
+      { error: "Content must be between 1 and 5000 characters." },
+      { status: 400 },
+    );
+  }
+
   // Validation: Check required fields and formats
   const UUID_REGEX =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -35,10 +68,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid battle ID." }, { status: 400 });
   }
 
-  if (!content || start_time === undefined || end_time === undefined) {
+  if (start_time === undefined || end_time === undefined) {
     return NextResponse.json(
       {
-        error: "Missing required fields (content, start_time, end_time).",
+        error: "Missing required fields (start_time, end_time).",
       },
       { status: 400 },
     );
@@ -69,6 +102,14 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  // ── CSRF Check ──
+  if (!verifyCsrf(request)) {
+    return NextResponse.json(
+      { error: "Invalid request origin." },
+      { status: 403 },
+    );
+  }
+
   // ── Auth & Permission Check ──
   const auth = await requirePermission("lines:edit");
   if (auth.error) {
@@ -102,6 +143,20 @@ export async function PATCH(request: NextRequest) {
       { error: "Missing field or value." },
       { status: 400 },
     );
+  }
+
+  // Validation: Check content length if editing content
+  if (field === "content") {
+    if (
+      typeof value !== "string" ||
+      value.length === 0 ||
+      value.length > 5000
+    ) {
+      return NextResponse.json(
+        { error: "Content must be between 1 and 5000 characters." },
+        { status: 400 },
+      );
+    }
   }
 
   const allowedFields = [

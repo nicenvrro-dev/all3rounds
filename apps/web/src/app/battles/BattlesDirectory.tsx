@@ -370,9 +370,11 @@ export default function BattlesDirectory({
 
       // Apply Search
       if (currentFilters.q) {
-        query = query.or(
-          `title.ilike.%${currentFilters.q}%,event_name.ilike.%${currentFilters.q}%`,
-        );
+        // Escape special ILIKE characters (%) and (_) to prevent pattern injection
+        const safeQ = currentFilters.q
+          .replace(/%/g, "\\%")
+          .replace(/_/g, "\\_");
+        query = query.or(`title.ilike.%${safeQ}%,event_name.ilike.%${safeQ}%`);
       }
 
       // Apply Status Filter

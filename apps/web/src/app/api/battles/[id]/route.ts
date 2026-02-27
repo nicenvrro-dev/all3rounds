@@ -57,12 +57,33 @@ export async function GET(
   });
 }
 
+// Helper for basic CSRF protection
+function verifyCsrf(request: NextRequest): boolean {
+  const origin = request.headers.get("origin");
+  const host = request.headers.get("host");
+  if (!origin || !host) return true;
+  try {
+    const originHost = new URL(origin).host;
+    return originHost === host;
+  } catch {
+    return false;
+  }
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
+
+    // ── CSRF Check ──
+    if (!verifyCsrf(request)) {
+      return NextResponse.json(
+        { error: "Invalid request origin." },
+        { status: 403 },
+      );
+    }
 
     // 1. Check permission
     const { error: permError } = await requirePermission("battles:edit_status");
@@ -121,11 +142,19 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
+
+    // ── CSRF Check ──
+    if (!verifyCsrf(request)) {
+      return NextResponse.json(
+        { error: "Invalid request origin." },
+        { status: 403 },
+      );
+    }
 
     // 1. Check permission
     const { error: permError } = await requirePermission("battles:delete");

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
-  const adminClient = createAdminClient();
+  const supabase = await createClient();
 
   // First, get the total count of lines
-  const { count, error: countError } = await adminClient
+  const { count, error: countError } = await supabase
     .from("lines")
     .select("*", { count: "exact", head: true });
 
@@ -21,7 +21,7 @@ export async function GET() {
   const randomOffset = Math.floor(Math.random() * count);
 
   // Fetch the line at that offset
-  const { data, error } = await adminClient
+  const { data, error } = await supabase
     .from("lines")
     .select(
       `
@@ -62,7 +62,7 @@ export async function GET() {
     : rawLine.battle;
 
   // Fetch battle participants
-  const { data: participants } = await adminClient
+  const { data: participants } = await supabase
     .from("battle_participants")
     .select("label, emcee:emcees ( id, name )")
     .eq("battle_id", battle.id);
