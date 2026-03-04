@@ -1,7 +1,9 @@
+"use client";
+
 import AuthButton from "@/components/AuthButton";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
-import { Menu } from "lucide-react";
+import { Menu, ClipboardList } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -11,8 +13,19 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
 
 export default function Header() {
+  const [role, setRole] = useState("viewer");
+
+  useEffect(() => {
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.role) setRole(data.role);
+      })
+      .catch(() => {});
+  }, []);
   return (
     <>
       <header className="bg-card/80 backdrop-blur-sm sticky top-0 z-50">
@@ -28,6 +41,15 @@ export default function Header() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8">
+            {["superadmin", "admin", "moderator"].includes(role) && (
+              <Link
+                href="/reviews"
+                className="flex items-center gap-1.5 text-sm font-bold text-primary transition-colors hover:text-primary/80"
+              >
+                <ClipboardList className="h-4 w-4" />
+                Reviews
+              </Link>
+            )}
             <Link
               href="/random"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -93,6 +115,17 @@ export default function Header() {
                       </span>
                       <div className="h-1.5 w-1.5 rounded-full bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                     </Link>
+                    {["superadmin", "admin", "moderator"].includes(role) && (
+                      <Link
+                        href="/reviews"
+                        className="group flex items-center justify-between px-4 py-3 rounded-lg hover:bg-primary/10 transition-all duration-200"
+                      >
+                        <span className="text-lg font-bold tracking-tight text-primary transition-colors">
+                          Reviews
+                        </span>
+                        <ClipboardList className="h-4 w-4 text-primary" />
+                      </Link>
+                    )}
                   </nav>
 
                   {/* Menu Footer */}

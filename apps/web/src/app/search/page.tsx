@@ -20,11 +20,15 @@ function SearchResults() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [canEdit, setCanEdit] = useState(false);
+  const [userRole, setUserRole] = useState("viewer");
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
 
   useEffect(() => {
     fetch("/api/me")
       .then((r) => r.json())
       .then((data) => {
+        setIsUserLoggedIn(!!data.user);
+        setUserRole(data.role || "viewer");
         setCanEdit(
           ["superadmin", "admin", "moderator", "verified_emcee"].includes(
             data.role,
@@ -143,6 +147,8 @@ function SearchResults() {
                 key={result.id}
                 result={result}
                 isLoggedIn={canEdit}
+                userRole={userRole}
+                isUserLoggedIn={isUserLoggedIn}
                 onEdited={() => doSearch(page)}
                 query={query}
               />

@@ -2,12 +2,13 @@
 
 import { SearchResult } from "@/lib/types";
 import EditLineModal from "./EditLineModal";
+import SuggestCorrectionModal from "./SuggestCorrectionModal";
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./StatusBadge";
-import { Play, Pencil, Mic2 } from "lucide-react";
+import { Play, Pencil, Mic2, MessageSquarePlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 function formatTime(seconds: number): string {
@@ -51,15 +52,20 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
 export default function ResultCard({
   result,
   isLoggedIn,
+  userRole = "viewer",
+  isUserLoggedIn = false,
   onEdited,
   query = "",
 }: {
   result: SearchResult;
   isLoggedIn: boolean;
+  userRole?: string;
+  isUserLoggedIn?: boolean;
   onEdited?: () => void;
   query?: string;
 }) {
   const [showEdit, setShowEdit] = useState(false);
+  const [showSuggest, setShowSuggest] = useState(false);
 
   const speaker = result.emcee?.name || result.speaker_label || "Unknown";
 
@@ -173,6 +179,23 @@ export default function ResultCard({
                   Edit
                 </Button>
               )}
+
+              {isUserLoggedIn && !isLoggedIn && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowSuggest(true);
+                  }}
+                  className="h-7 gap-1.5 border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  title="Suggest a correction"
+                >
+                  <MessageSquarePlus className="h-3 w-3" />
+                  Suggest
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -187,6 +210,14 @@ export default function ResultCard({
             setShowEdit(false);
             onEdited?.();
           }}
+        />
+      )}
+
+      {/* Suggest modal */}
+      {showSuggest && (
+        <SuggestCorrectionModal
+          result={result}
+          onClose={() => setShowSuggest(false)}
         />
       )}
     </>

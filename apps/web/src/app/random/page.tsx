@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { SearchResult } from "@/lib/types";
@@ -8,18 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Shuffle,
-  CloudUpload,
   CheckCircle2,
   ChevronRight,
   Mic2,
-  ExternalLink,
   Loader2,
-  Search,
+  MessageSquarePlus,
 } from "lucide-react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import SuggestCorrectionModal from "@/components/SuggestCorrectionModal";
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -70,6 +69,8 @@ export default function RandomPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [canEdit, setCanEdit] = useState(false);
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
+  const [showSuggest, setShowSuggest] = useState(false);
 
   const saveInProgress = useRef(false);
 
@@ -92,6 +93,7 @@ export default function RandomPage() {
     fetch("/api/me")
       .then((r) => r.json())
       .then((data) => {
+        setIsUserLoggedIn(!!data.user);
         if (
           data.role &&
           ["superadmin", "admin", "moderator", "verified_emcee"].includes(
@@ -397,9 +399,24 @@ export default function RandomPage() {
                 </div>
 
                 {!canEdit && (
-                  <p className="text-center text-muted-foreground bg-muted/30 py-4 rounded-xl border border-dashed text-xs px-4">
-                    Log in with edit permissions to suggest or make corrections.
-                  </p>
+                  <div className="text-center text-muted-foreground bg-muted/30 py-6 rounded-xl border border-dashed text-xs px-4 flex flex-col items-center gap-3">
+                    <p>
+                      {isUserLoggedIn
+                        ? "You are viewing this line as a community contributor."
+                        : "Log in to suggest or make corrections."}
+                    </p>
+                    {isUserLoggedIn && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowSuggest(true)}
+                        className="gap-2 font-bold"
+                      >
+                        <MessageSquarePlus className="h-4 w-4" />
+                        Suggest Correction
+                      </Button>
+                    )}
+                  </div>
                 )}
 
                 {canEdit &&
@@ -440,6 +457,14 @@ export default function RandomPage() {
           </div>
         ) : null}
       </main>
+
+      {showSuggest && line && (
+        <SuggestCorrectionModal
+          result={line}
+          onClose={() => setShowSuggest(false)}
+        />
+      )}
+
       <Footer />
     </div>
   );

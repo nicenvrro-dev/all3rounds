@@ -35,6 +35,7 @@ import {
   Maximize2,
   Minimize2,
   Trash2,
+  MessageSquarePlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusBadge, STATUS_CONFIG } from "@/components/StatusBadge";
@@ -48,8 +49,8 @@ import {
 import BatchActionBar from "@/components/BatchActionBar";
 import BattleEditModal from "@/components/BattleEditModal";
 import BattleAddLineModal from "@/components/BattleAddLineModal";
+import SuggestCorrectionModal from "@/components/SuggestCorrectionModal";
 import Footer from "@/components/Footer";
-import type { Emcee } from "@/lib/types";
 import type { UserRole } from "@/lib/auth";
 
 // ============================================================================
@@ -189,7 +190,10 @@ const LineItem = memo(
     onSetInlineContent,
     onSeek,
     onEditClick,
+    onSuggestClick,
     onAddClick,
+    isLoggedIn,
+    canEdit,
     showBeforeInsert,
   }: {
     line: BattleLine;
@@ -206,7 +210,10 @@ const LineItem = memo(
     onSetInlineContent: (val: string) => void;
     onSeek: (time: number) => void;
     onEditClick: (line: BattleLine) => void;
+    onSuggestClick: (line: BattleLine) => void;
     onAddClick: (lineId: number, pos: "before" | "after") => void;
+    isLoggedIn: boolean;
+    canEdit: boolean;
     showBeforeInsert?: boolean;
   }) => {
     return (
@@ -304,11 +311,11 @@ const LineItem = memo(
             </Button>
           </div>
         ) : (
-          <button
+          <div
             data-line-id={line.id}
             onClick={() => onSeek(line.start_time)}
             className={cn(
-              "group/line flex w-full items-baseline gap-3 rounded-md px-1.5 py-0.5 text-left text-[13px] transition-all duration-300 ease-in-out",
+              "group/line flex w-full cursor-pointer items-baseline gap-3 rounded-md px-1.5 py-0.5 text-[13px] transition-all duration-300 ease-in-out",
               isActive
                 ? "bg-primary/10 border-l-2 border-primary rounded-l-none font-semibold"
                 : "hover:bg-muted/30 text-foreground/80 border-l-2 border-transparent",
@@ -323,17 +330,22 @@ const LineItem = memo(
                 </span>
               )}
             </div>
-            <span
-              className={cn(
-                "leading-relaxed transition-colors",
-                isActive
-                  ? "text-foreground"
-                  : "group-hover/line:text-foreground",
-              )}
-            >
-              {line.content}
-            </span>
-          </button>
+            <span className="flex-1">{line.content}</span>
+            {isLoggedIn && !canEdit && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSuggestClick(line);
+                }}
+                className="ml-auto h-5 w-5 shrink-0 text-muted-foreground opacity-100 lg:opacity-0 lg:transition-opacity hover:bg-muted hover:text-foreground lg:group-hover/line:opacity-100 focus:opacity-100"
+                title="Suggest a correction"
+              >
+                <MessageSquarePlus className="h-2.5 w-2.5" />
+              </Button>
+            )}
+          </div>
         )}
 
         {editMode && (
@@ -420,6 +432,9 @@ export default function BattlePage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [deletingBattle, setDeletingBattle] = useState(false);
 
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
+  const [suggestingLine, setSuggestingLine] = useState<BattleLine | null>(null);
+
   // -- Collapsible UI State --
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(
     new Set(),
@@ -454,6 +469,7 @@ export default function BattlePage() {
     fetch("/api/me")
       .then((r) => r.json())
       .then((data) => {
+        setIsUserLoggedIn(!!data.user);
         if (data.role) setUserRole(data.role);
       })
       .catch(() => {});
@@ -1486,7 +1502,10 @@ export default function BattlePage() {
                                             }
                                             onSeek={handleSeek}
                                             onEditClick={setEditingLine}
+                                            onSuggestClick={setSuggestingLine}
                                             onAddClick={handleAddLineAt}
+                                            isLoggedIn={isUserLoggedIn}
+                                            canEdit={canEdit}
                                             showBeforeInsert={
                                               gi === 0 && ti === 0 && li === 0
                                             }
@@ -1544,6 +1563,17 @@ export default function BattlePage() {
           }}
         />
       )}
+
+      {suggestingLine && (
+        <SuggestCorrectionModal
+          result={{
+            ...suggestingLine,
+            battle: data.battle as any,
+          }}
+          onClose={() => setSuggestingLine(null)}
+        />
+      )}
+
       {/* Add-line modal */}
       {addingLine && (
         <BattleAddLineModal
