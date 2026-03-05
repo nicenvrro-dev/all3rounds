@@ -2,24 +2,14 @@
 
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import {
-  Suspense,
-  useEffect,
-  useMemo,
-  useState,
-  useRef,
-  useCallback,
-} from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
   Calendar,
   ChevronDown,
-  ChevronRight,
   Mic2,
   Search,
-  FileText,
-  Filter,
   ArrowUpDown,
   X,
   ListFilter,
@@ -548,8 +538,13 @@ export default function BattlesDirectory({
 
   // -- Superadmin: Global Battle Selection --
   const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedBattleIds, setSelectedBattleIds] = useState<Set<string>>(
-    new Set(),
+  const [selectedBattles, setSelectedBattles] = useState<
+    Record<string, Battle>
+  >({});
+
+  const selectedBattleIds = useMemo(
+    () => new Set(Object.keys(selectedBattles)),
+    [selectedBattles],
   );
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [moveTargetName, setMoveTargetName] = useState("");
@@ -557,10 +552,14 @@ export default function BattlesDirectory({
   const { toast } = useToast();
 
   const toggleBattleSelection = (id: string) => {
-    setSelectedBattleIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+    setSelectedBattles((prev) => {
+      const next = { ...prev };
+      if (next[id]) {
+        delete next[id];
+      } else {
+        const battle = battles.find((b) => b.id === id);
+        if (battle) next[id] = battle;
+      }
       return next;
     });
   };
@@ -592,7 +591,7 @@ export default function BattlesDirectory({
         title: "Battles moved",
         description: `Moved ${selectedBattleIds.size} battle(s) to "${moveTargetName.trim()}".`,
       });
-      setSelectedBattleIds(new Set());
+      setSelectedBattles({});
       setIsMoveDialogOpen(false);
       setSelectionMode(false);
       setMoveTargetName("");
@@ -635,7 +634,7 @@ export default function BattlesDirectory({
         title: "Battles excluded",
         description: `Excluded ${selectedBattleIds.size} battle(s).`,
       });
-      setSelectedBattleIds(new Set());
+      setSelectedBattles({});
       setIsExcludeDialogOpen(false);
       setSelectionMode(false);
     } catch (err) {
@@ -652,8 +651,8 @@ export default function BattlesDirectory({
 
   // Get selected battles info for preview
   const selectedBattlesInfo = useMemo(
-    () => battles.filter((b) => selectedBattleIds.has(b.id)),
-    [battles, selectedBattleIds],
+    () => Object.values(selectedBattles),
+    [selectedBattles],
   );
 
   const ITEMS_PER_PAGE = 24;
@@ -1253,7 +1252,7 @@ export default function BattlesDirectory({
                         {previewOpen ? "Hide" : "Preview"}
                       </button>
                       <button
-                        onClick={() => setSelectedBattleIds(new Set())}
+                        onClick={() => setSelectedBattles({})}
                         className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                       >
                         Clear
@@ -1267,7 +1266,7 @@ export default function BattlesDirectory({
                     size="sm"
                     onClick={() => {
                       setSelectionMode(false);
-                      setSelectedBattleIds(new Set());
+                      setSelectedBattles({});
                       setPreviewOpen(false);
                     }}
                   >
