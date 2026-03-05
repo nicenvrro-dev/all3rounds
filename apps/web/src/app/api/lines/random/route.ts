@@ -4,10 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET() {
   const supabase = await createClient();
 
-  // First, get the total count of lines
   const { count, error: countError } = await supabase
     .from("lines")
-    .select("*", { count: "exact", head: true });
+    .select("*, battle:battles!inner(status)", { count: "exact", head: true })
+    .neq("battle.status", "raw");
 
   if (countError || !count) {
     console.error("Failed to get lines count:", countError);
@@ -35,7 +35,7 @@ export async function GET() {
         id,
         name
       ),
-      battle:battles (
+      battle:battles!inner (
         id,
         title,
         youtube_id,
@@ -46,6 +46,7 @@ export async function GET() {
       )
     `,
     )
+    .neq("battle.status", "raw")
     .range(randomOffset, randomOffset);
 
   if (error || !data || data.length === 0) {
@@ -67,7 +68,6 @@ export async function GET() {
     .select("label, emcee:emcees ( id, name )")
     .eq("battle_id", battle.id);
 
-  // Handle single relation vs array (Supabase might return an array or object depending on relation)
   const line = {
     ...rawLine,
     emcee: Array.isArray(rawLine.emcee) ? rawLine.emcee[0] : rawLine.emcee,

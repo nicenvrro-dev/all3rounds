@@ -10,7 +10,6 @@ import {
   Shuffle,
   CheckCircle2,
   ChevronRight,
-  Mic2,
   Loader2,
   MessageSquarePlus,
 } from "lucide-react";
@@ -263,14 +262,51 @@ export default function RandomPage() {
     };
   }, [line]);
 
-  // Handle Content change (debounced save)
+  const submitSuggestion = useCallback(async () => {
+    if (!line || content === line.content || saveInProgress.current) return;
+
+    saveInProgress.current = true;
+    setSaving(true);
+    setSaved(false);
+    setError("");
+
+    try {
+      const res = await fetch("/api/suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          line_id: line.id,
+          suggested_content: content,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to submit.");
+      }
+
+      setSaved(true);
+      setTimeout(() => {
+        setSaved(false);
+        loadRandomLine();
+      }, 2000);
+    } catch (err: any) {
+      setError(err.message || "An error occurred.");
+    } finally {
+      setSaving(false);
+      saveInProgress.current = false;
+    }
+  }, [line, content, loadRandomLine]);
+
+  // Handle Content change (debounced save for editors)
   useEffect(() => {
     if (!line || content === line.content) return;
+    if (!canEdit) return; // Don't auto-save for simple viewers doing suggestions
     const timer = setTimeout(() => {
       performAutoSave();
     }, 1000);
     return () => clearTimeout(timer);
-  }, [content, line, performAutoSave]);
+  }, [content, line, canEdit, performAutoSave]);
 
   const speaker = line?.emcee?.name || line?.speaker_label || "Unknown";
 
@@ -327,7 +363,6 @@ export default function RandomPage() {
 
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
                     <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
-                      <Mic2 className="h-3.5 w-3.5 text-muted-foreground" />
                       {speaker}
                     </span>
                     <span className="text-border">•</span>
@@ -388,34 +423,25 @@ export default function RandomPage() {
                   <Textarea
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    disabled={!canEdit}
+                    disabled={!isUserLoggedIn}
                     className={cn(
                       "min-h-[140px] text-base leading-relaxed resize-none p-4 bg-card/50 border-border rounded-xl focus:bg-card transition-all shadow-inner",
-                      !canEdit &&
+                      !isUserLoggedIn &&
                         "opacity-80 border-transparent bg-muted/50 cursor-not-allowed",
                     )}
                     placeholder="Line content..."
                   />
+                  {!canEdit && isUserLoggedIn && (
+                    <div className="mt-2 text-xs text-muted-foreground flex items-center gap-1.5">
+                      <MessageSquarePlus className="h-3.5 w-3.5" />
+                      Edit the text above to submit a suggestion.
+                    </div>
+                  )}
                 </div>
 
-                {!canEdit && (
+                {!isUserLoggedIn && (
                   <div className="text-center text-muted-foreground bg-muted/30 py-6 rounded-xl border border-dashed text-xs px-4 flex flex-col items-center gap-3">
-                    <p>
-                      {isUserLoggedIn
-                        ? "You are viewing this line as a community contributor."
-                        : "Log in to suggest or make corrections."}
-                    </p>
-                    {isUserLoggedIn && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowSuggest(true)}
-                        className="gap-2 font-bold"
-                      >
-                        <MessageSquarePlus className="h-4 w-4" />
-                        Suggest Correction
-                      </Button>
-                    )}
+                    <p>Log in to suggest or make corrections.</p>
                   </div>
                 )}
 
@@ -452,6 +478,49 @@ export default function RandomPage() {
                       </div>
                     </div>
                   )}
+
+                {isUserLoggedIn && !canEdit && content !== line.content && (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between pt-2 border-t border-dashed border-border/50">
+                      <div className="flex items-center gap-2">
+                        {saving ? (
+                          <div className="flex items-center gap-2 text-primary font-medium text-xs animate-pulse">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Submitting...
+                          </div>
+                        ) : saved ? (
+                          <div className="flex items-center gap-2 text-green-600 dark:text-green-500 font-medium text-xs">
+                            Suggestion Submitted!
+                          </div>
+                        ) : error ? (
+                          <div className="text-red-500 text-xs font-medium">
+                            {error}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setContent(line.content)}
+                          disabled={saving}
+                        >
+                          Discard
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={submitSuggestion}
+                          disabled={saving || content === line.content}
+                          className="gap-2 font-bold"
+                        >
+                          <MessageSquarePlus className="h-4 w-4" />
+                          Submit Suggestion
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
