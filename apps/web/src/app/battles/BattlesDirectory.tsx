@@ -185,7 +185,8 @@ function BattleCard({
           alt={battle.title}
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-          className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" unoptimized
+          className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          unoptimized
         />
         <div className="absolute inset-0 bg-linear-to-bl from-black/40 via-transparent to-transparent pointer-events-none" />
 
@@ -1213,6 +1214,7 @@ export default function BattlesDirectory({
                             width={40}
                             height={30}
                             className="rounded object-cover"
+                            unoptimized
                           />
                           <span className="text-xs font-medium max-w-[140px] truncate">
                             {battle.title}
@@ -1374,6 +1376,7 @@ export default function BattlesDirectory({
                       width={48}
                       height={36}
                       className="rounded object-cover shrink-0"
+                      unoptimized
                     />
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">

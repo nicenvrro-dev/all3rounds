@@ -90,6 +90,7 @@ export default function ResultCard({
               fill
               sizes="176px"
               className="object-cover"
+              unoptimized
             />
             {/* Gradient fade from image to content */}
             <div className="absolute inset-y-0 right-0 w-16 bg-linear-to-r from-transparent to-card" />
