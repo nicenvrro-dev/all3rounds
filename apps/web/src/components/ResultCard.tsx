@@ -8,7 +8,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./StatusBadge";
-import { Play, Pencil, Mic2, MessageSquarePlus } from "lucide-react";
+import { Mic2, MessageSquarePlus, SquarePen } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 function formatTime(seconds: number): string {
@@ -24,29 +24,6 @@ function formatDate(dateStr: string | null): string {
     month: "short",
     day: "numeric",
   });
-}
-
-function HighlightedText({ text, query }: { text: string; query: string }) {
-  if (!query) return <>{text}</>;
-  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const regex = new RegExp(`(${escaped})`, "gi");
-  const parts = text.split(regex);
-  return (
-    <>
-      {parts.map((part, i) =>
-        regex.test(part) ? (
-          <mark
-            key={i}
-            className="rounded-sm bg-primary/20 px-0.5 font-semibold text-primary"
-          >
-            {part}
-          </mark>
-        ) : (
-          <span key={i}>{part}</span>
-        ),
-      )}
-    </>
-  );
 }
 
 export default function ResultCard({
@@ -79,124 +56,101 @@ export default function ResultCard({
             `/battle/${result.battle.id}?t=${Math.floor(result.start_time)}`,
           )
         }
-        className="group block cursor-pointer overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-border/60"
+        className="group block cursor-pointer py-4 transition-colors hover:bg-muted/30 sm:-mx-4 sm:px-4 sm:rounded-xl"
       >
-        <div className="relative flex min-h-[120px]">
-          {/* Thumbnail — flush left, fills height */}
-          <div className="relative hidden w-44 shrink-0 sm:block">
+        <div className="flex gap-4 sm:gap-6">
+          {/* Thumbnail */}
+          <div className="relative mt-1 hidden aspect-video w-36 shrink-0 self-start overflow-hidden rounded-md bg-muted sm:block">
             <Image
               src={`https://img.youtube.com/vi/${result.battle.youtube_id}/mqdefault.jpg`}
               alt={result.battle.title}
               fill
-              sizes="176px"
+              sizes="144px"
               className="object-cover"
               unoptimized
             />
-            {/* Gradient fade from image to content */}
-            <div className="absolute inset-y-0 right-0 w-16 bg-linear-to-r from-transparent to-card" />
             {/* Timestamp badge */}
-            <span className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[10px] font-medium text-white">
+            <span className="absolute bottom-1.5 right-1.5 rounded bg-black/80 px-1.5 py-0.5 font-mono text-[10px] font-medium text-white shadow-sm">
               {formatTime(result.start_time)}
             </span>
           </div>
 
           {/* Content */}
-          <div className="relative flex flex-1 flex-col justify-center px-4 py-4 sm:px-5">
-            {/* Line text */}
-            <p className="text-[15px] leading-relaxed text-foreground">
-              &ldquo;
-              <HighlightedText text={result.content} query={query} />
-              &rdquo;
-            </p>
-
-            {/* Meta row */}
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
-                <Mic2 className="h-3 w-3 text-muted-foreground" />
-                {speaker}
-              </span>
-              <span className="text-border">·</span>
-              <span className="inline-flex items-center gap-2">
-                {result.battle.title}
-                <StatusBadge
-                  status={result.battle.status}
-                  className="scale-90"
-                />
-              </span>
-              {result.round_number && (
-                <>
-                  <span className="text-border">·</span>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium">
-                    {result.round_number === 4
-                      ? "OT"
-                      : `Round ${result.round_number}`}
-                  </span>
-                </>
-              )}
-              {result.battle.event_name && (
-                <>
-                  <span className="text-border">·</span>
-                  <span>{result.battle.event_name}</span>
-                </>
-              )}
-              {result.battle.event_date && (
-                <>
-                  <span className="text-border">·</span>
-                  <span>{formatDate(result.battle.event_date)}</span>
-                </>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="mt-3 flex items-center gap-2">
-              <Button
-                variant="default"
-                size="sm"
-                asChild
-                onClick={(e) => e.stopPropagation()}
-                className="h-7 gap-1.5 bg-foreground px-3 text-xs font-medium text-background transition-opacity hover:opacity-80"
-              >
-                <Link
-                  href={`/battle/${result.battle.id}?t=${Math.floor(result.start_time)}`}
-                >
-                  <Play className="h-3 w-3" />
-                  Play at {formatTime(result.start_time)}
-                </Link>
-              </Button>
-
+          <div className="relative flex flex-1 flex-col justify-center">
+            {/* Top Right Actions */}
+            <div className="absolute right-0 top-0 flex items-center">
               {isLoggedIn && (
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="ghost"
+                  size="icon"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setShowEdit(true);
                   }}
-                  className="h-7 gap-1.5 border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="h-8 w-8 text-muted-foreground hover:bg-primary/0 hover:text-foreground"
                   title="Edit this line"
                 >
-                  <Pencil className="h-3 w-3" />
-                  Edit
+                  <SquarePen className="h-4 w-4" />
                 </Button>
               )}
-
               {isUserLoggedIn && !isLoggedIn && (
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="ghost"
+                  size="icon"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setShowSuggest(true);
                   }}
-                  className="h-7 gap-1.5 border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary"
                   title="Suggest a correction"
                 >
-                  <MessageSquarePlus className="h-3 w-3" />
-                  Suggest
+                  <MessageSquarePlus className="h-4 w-4" />
                 </Button>
               )}
+            </div>
+
+            {/* Meta section */}
+            <div className="mb-5 pr-10">
+              <span className="text-[15px] font-black uppercase text-primary/80">
+                {speaker}
+              </span>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-medium text-muted-foreground/60 transition-colors group-hover:text-muted-foreground">
+                <span>{result.battle.title}</span>
+                {result.battle.event_name && (
+                  <>
+                    <span className="opacity-30">·</span>
+                    <span>{result.battle.event_name}</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Lines Block (Best of Both Worlds) */}
+            <div className="relative border-l border-white/10 pl-4 py-0.5">
+              {/* Context Block: Single flow for all lines with truncation */}
+              <div className="flex flex-col gap-1">
+                {result.prev_line && (
+                  <p className="line-clamp-1 text-[14px] font-medium leading-tight text-muted-foreground/30 transition-colors group-hover:text-muted-foreground/50">
+                    {result.prev_line.content}
+                  </p>
+                )}
+
+                <div className="relative">
+                  {/* Visual anchor for the target match */}
+                  <div className="absolute -left-[17px] top-1/2 -translate-y-1/2 h-3 w-[2px] bg-primary/40 rounded-full" />
+                  <p className="text-[15px] font-semibold leading-relaxed text-foreground sm:text-[16px]">
+                    {result.content}
+                  </p>
+                </div>
+
+                {result.next_line && (
+                  <p className="line-clamp-1 text-[14px] font-medium leading-tight text-muted-foreground/30 transition-colors group-hover:text-muted-foreground/50">
+                    {result.next_line.content}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>

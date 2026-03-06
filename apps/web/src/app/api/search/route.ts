@@ -93,6 +93,8 @@ export async function GET(request: NextRequest) {
       url: `https://www.youtube.com/watch?v=${row.battle_youtube_id}`,
     },
     rank: row.rank,
+    prev_line: undefined as any,
+    next_line: undefined as any,
   }));
 
   if (error) {
@@ -101,6 +103,52 @@ export async function GET(request: NextRequest) {
       { error: "Search failed. Please try again." },
       { status: 500 },
     );
+  }
+
+  // --- Fetch Context Lines ---
+  if (formattedData && formattedData.length > 0) {
+    const contextIds = new Set<number>();
+    formattedData.forEach((row) => {
+      contextIds.add(row.id - 1);
+      contextIds.add(row.id + 1);
+    });
+
+    const queryIds = Array.from(contextIds);
+    
+    // Only fetch if we have ids
+    if (queryIds.length > 0) {
+      const { data: contextLines } = await supabase
+        .from("lines")
+        .select("id, content, battle_id, speaker_label, round_number")
+        .in("id", queryIds);
+
+      if (contextLines) {
+        const contextMap = new Map();
+        contextLines.forEach((line) => contextMap.set(line.id, line));
+
+        formattedData.forEach((row) => {
+          const prev = contextMap.get(row.id - 1);
+          if (prev && prev.battle_id === row.battle.id) {
+            row.prev_line = {
+              id: prev.id,
+              content: prev.content,
+              speaker_label: prev.speaker_label,
+              round_number: prev.round_number,
+            };
+          }
+
+          const next = contextMap.get(row.id + 1);
+          if (next && next.battle_id === row.battle.id) {
+            row.next_line = {
+              id: next.id,
+              content: next.content,
+              speaker_label: next.speaker_label,
+              round_number: next.round_number,
+            };
+          }
+        });
+      }
+    }
   }
 
   const result = {

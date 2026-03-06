@@ -22,6 +22,18 @@ export type SearchResult = {
       emcee: { id: string; name: string } | null;
     }[];
   };
+  prev_line?: {
+    id: number;
+    content: string;
+    speaker_label: string | null;
+    round_number: number | null;
+  } | null;
+  next_line?: {
+    id: number;
+    content: string;
+    speaker_label: string | null;
+    round_number: number | null;
+  } | null;
 };
 
 export type Emcee = {

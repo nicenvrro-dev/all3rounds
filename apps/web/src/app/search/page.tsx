@@ -17,6 +17,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { Separator } from "@/components/ui/separator";
 
 function SearchResults() {
   const router = useRouter();
@@ -105,7 +106,7 @@ function SearchResults() {
       <Header />
 
       {/* Search bar */}
-      <div className="border-b border-border bg-card/50">
+      <div className="sticky top-[56px] z-30 border-b border-white/5 bg-background/95 backdrop-blur-xl">
         <div className="mx-auto max-w-4xl px-4 py-3 sm:px-6">
           <SearchBar initialQuery={query} size="sm" />
         </div>
@@ -135,17 +136,24 @@ function SearchResults() {
 
         {/* Loading state */}
         {loading && (
-          <div className="space-y-3">
+          <div className="space-y-6">
             {[...Array(4)].map((_, i) => (
-              <div
-                key={i}
-                className="flex animate-pulse gap-4 rounded-xl border border-border p-5"
-              >
-                <div className="hidden h-20 w-32 shrink-0 rounded-lg bg-muted sm:block" />
-                <div className="flex-1 space-y-3">
-                  <div className="h-5 w-full rounded bg-muted" />
-                  <div className="h-4 w-2/3 rounded bg-muted" />
-                  <div className="h-8 w-32 rounded bg-muted" />
+              <div key={i}>
+                {i > 0 && <Separator className="my-6" />}
+                <div className="flex animate-pulse gap-4 sm:gap-6">
+                  <div className="hidden aspect-video w-40 shrink-0 self-start rounded-md bg-muted sm:block" />
+                  <div className="flex-1 space-y-4 py-1">
+                    <div className="h-4 w-1/3 rounded bg-muted max-w-[200px]" />
+                    <div className="space-y-2 border-l-2 border-muted pl-3">
+                      <div className="h-3 w-5/6 rounded bg-muted/60" />
+                      <div className="h-4 w-full rounded bg-muted" />
+                      <div className="h-3 w-4/6 rounded bg-muted/60" />
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <div className="h-8 w-24 rounded bg-muted" />
+                      <div className="h-8 w-16 rounded bg-muted" />
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -167,17 +175,19 @@ function SearchResults() {
 
         {/* Results list */}
         {!loading && !error && results.length > 0 && (
-          <div className="space-y-3">
-            {results.map((result) => (
-              <ResultCard
-                key={result.id}
-                result={result}
-                isLoggedIn={canEdit}
-                userRole={userRole}
-                isUserLoggedIn={isUserLoggedIn}
-                onEdited={() => doSearch(page)}
-                query={query}
-              />
+          <div className="space-y-2">
+            {results.map((result, i) => (
+              <div key={result.id}>
+                {i > 0 && <Separator className="my-2" />}
+                <ResultCard
+                  result={result}
+                  isLoggedIn={canEdit}
+                  userRole={userRole}
+                  isUserLoggedIn={isUserLoggedIn}
+                  onEdited={() => doSearch(page)}
+                  query={query}
+                />
+              </div>
             ))}
           </div>
         )}
