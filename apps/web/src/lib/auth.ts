@@ -31,6 +31,7 @@ const PERMISSIONS: Record<string, UserRole[]> = {
   "battles:manage": ["superadmin", "admin"],
   "battles:edit_status": ["superadmin", "admin", "moderator"],
   "battles:edit_event_name": ["superadmin"],
+  "battles:edit_event_date": ["superadmin"],
   "battles:delete": ["superadmin"],
   "suggestions:create": [
     "superadmin",

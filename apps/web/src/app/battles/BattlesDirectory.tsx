@@ -13,6 +13,7 @@ import {
   X,
   ListFilter,
   Edit2,
+  Calendar,
   Loader2,
   Check,
   MousePointerClick,
@@ -258,6 +259,7 @@ function EventSection({
   onToggle,
   isSuperadmin = false,
   onRenameGroup,
+  onUpdateGroupDate,
   allEventNames = [],
   selectionMode = false,
   selectedIds,
@@ -268,6 +270,7 @@ function EventSection({
   onToggle?: (name: string, isOpen: boolean) => void;
   isSuperadmin?: boolean;
   onRenameGroup?: (oldName: string, newName: string) => void;
+  onUpdateGroupDate?: (eventName: string, newDate: string) => void;
   allEventNames?: string[];
   selectionMode?: boolean;
   selectedIds?: Set<string>;
@@ -275,7 +278,9 @@ function EventSection({
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [isDateOpen, setIsDateOpen] = useState(false);
   const [newName, setNewName] = useState(group.name);
+  const [newDate, setNewDate] = useState(group.date || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -310,6 +315,40 @@ function EventSection({
         description: `Renamed ${group.battles.length} battle(s).`,
       });
       setIsRenameOpen(false);
+    } catch (err) {
+      toast({
+        title: "Error",
+        description:
+          err instanceof Error ? err.message : "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const handleUpdateDate = async () => {
+    if (!newDate || newDate === group.date) return;
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/battles/event-date", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventName: group.name,
+          newDate,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update date");
+      }
+      onUpdateGroupDate?.(group.name, newDate);
+      toast({
+        title: "Date updated",
+        description: `Updated date for ${group.battles.length} battle(s).`,
+      });
+      setIsDateOpen(false);
     } catch (err) {
       toast({
         title: "Error",
@@ -380,6 +419,20 @@ function EventSection({
                   title="Rename event"
                 >
                   <Edit2 className="h-3 w-3" />
+                </button>
+              )}
+
+              {isSuperadmin && !selectionMode && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setNewDate(group.date || "");
+                    setIsDateOpen(true);
+                  }}
+                  className="rounded-full p-1.5 text-muted-foreground/40 hover:bg-primary/10 hover:text-primary transition-all"
+                  title="Update event date"
+                >
+                  <Calendar className="h-3 w-3" />
                 </button>
               )}
 
@@ -486,6 +539,53 @@ function EventSection({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Date Dialog */}
+      {isSuperadmin && (
+        <Dialog open={isDateOpen} onOpenChange={setIsDateOpen}>
+          <DialogContent onClick={(e) => e.stopPropagation()}>
+            <DialogHeader>
+              <DialogTitle>Update Event Date</DialogTitle>
+              <DialogDescription>
+                This will update the event date for all{" "}
+                <strong>{group.battles.length}</strong> battle
+                {group.battles.length !== 1 && "s"} in &quot;{group.name}&quot;.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Input
+                type="date"
+                value={newDate}
+                onChange={(e) => setNewDate(e.target.value)}
+                disabled={isSubmitting}
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsDateOpen(false)}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpdateDate}
+                disabled={isSubmitting || !newDate || newDate === group.date}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Update Date"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </section>
   );
 }
@@ -552,8 +652,11 @@ export default function BattlesDirectory({
     [selectedBattles],
   );
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+  const [isDateDialogOpen, setIsDateDialogOpen] = useState(false);
   const [moveTargetName, setMoveTargetName] = useState("");
+  const [newDateValue, setNewDateValue] = useState("");
   const [isMoving, setIsMoving] = useState(false);
+  const [isUpdatingDate, setIsUpdatingDate] = useState(false);
   const { toast } = useToast();
 
   const toggleBattleSelection = (id: string) => {
@@ -609,6 +712,47 @@ export default function BattlesDirectory({
       });
     } finally {
       setIsMoving(false);
+    }
+  };
+
+  const handleUpdateDateSelected = async () => {
+    if (!newDateValue || selectedBattleIds.size === 0) return;
+    setIsUpdatingDate(true);
+    try {
+      const res = await fetch("/api/battles/event-date", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          battleIds: Array.from(selectedBattleIds),
+          newDate: newDateValue,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update dates");
+      }
+      setBattles((prev) =>
+        prev.map((b) =>
+          selectedBattleIds.has(b.id) ? { ...b, event_date: newDateValue } : b,
+        ),
+      );
+      toast({
+        title: "Dates updated",
+        description: `Updated dates for ${selectedBattleIds.size} battle(s).`,
+      });
+      setSelectedBattles({});
+      setIsDateDialogOpen(false);
+      setSelectionMode(false);
+      setNewDateValue("");
+    } catch (err) {
+      toast({
+        title: "Error",
+        description:
+          err instanceof Error ? err.message : "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingDate(false);
     }
   };
 
@@ -1309,6 +1453,18 @@ export default function BattlesDirectory({
                   </Button>
                   <Button
                     size="sm"
+                    variant="outline"
+                    disabled={selectedBattleIds.size === 0}
+                    onClick={() => {
+                      setNewDateValue("");
+                      setIsDateDialogOpen(true);
+                    }}
+                  >
+                    <Calendar className="mr-1.5 h-3.5 w-3.5" />
+                    Change Date
+                  </Button>
+                  <Button
+                    size="sm"
                     disabled={selectedBattleIds.size === 0}
                     onClick={() => {
                       setMoveTargetName("");
@@ -1366,6 +1522,50 @@ export default function BattlesDirectory({
                     </>
                   ) : (
                     `Move ${selectedBattleIds.size} Battle${selectedBattleIds.size !== 1 ? "s" : ""}`
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Date Update Dialog */}
+          <Dialog open={isDateDialogOpen} onOpenChange={setIsDateDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Update Event Date</DialogTitle>
+                <DialogDescription>
+                  Update event date for {selectedBattleIds.size} selected battle
+                  {selectedBattleIds.size !== 1 && "s"}.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <Input
+                  type="date"
+                  value={newDateValue}
+                  onChange={(e) => setNewDateValue(e.target.value)}
+                  disabled={isUpdatingDate}
+                  autoFocus
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDateDialogOpen(false)}
+                  disabled={isUpdatingDate}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleUpdateDateSelected}
+                  disabled={isUpdatingDate || !newDateValue}
+                >
+                  {isUpdatingDate ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    `Update ${selectedBattleIds.size} Date${selectedBattleIds.size !== 1 ? "s" : ""}`
                   )}
                 </Button>
               </DialogFooter>
