@@ -452,13 +452,19 @@ export default function BattlePage() {
   // ────────────────────────────────────────────────────────────────────────────
 
   const fetchBattle = useCallback(() => {
-    fetch(`/api/battles/${battleId}`)
+    return fetch(`/api/battles/${battleId}`)
       .then((res) => {
         if (!res.ok) throw new Error("Not found");
         return res.json();
       })
-      .then(setData)
-      .catch(() => setError("Battle not found."))
+      .then((d) => {
+        setData(d);
+        return d as BattleData;
+      })
+      .catch(() => {
+        setError("Battle not found.");
+        return null;
+      })
       .finally(() => setLoading(false));
   }, [battleId]);
 
@@ -633,7 +639,18 @@ export default function BattlePage() {
           `[data-line-id="${lastClickedLineId}"]`,
         ) as HTMLElement;
         if (targetEl) {
-          targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+          const containerRect = container.getBoundingClientRect();
+          const targetRect = targetEl.getBoundingClientRect();
+          const targetScrollTop =
+            container.scrollTop +
+            (targetRect.top - containerRect.top) -
+            containerRect.height / 2 +
+            targetRect.height / 2;
+
+          container.scrollTo({
+            top: targetScrollTop,
+            behavior: "smooth"
+          });
         }
       }, 50);
     }
@@ -881,6 +898,36 @@ export default function BattlePage() {
   ) => {
     if (selectedIds.size === 0) return;
     setBatchSaving(true);
+
+    // Determine targetLineId to scroll to after batch action completes
+    let targetLineId: number | null = null;
+    if (data?.lines) {
+      if (action === "delete") {
+        const firstIdx = data.lines.findIndex((l) => selectedIds.has(l.id));
+        if (firstIdx !== -1) {
+          // Look backwards for a surviving line
+          for (let i = firstIdx - 1; i >= 0; i--) {
+            if (!selectedIds.has(data.lines[i].id)) {
+              targetLineId = data.lines[i].id;
+              break;
+            }
+          }
+          // If none found backwards, look forwards
+          if (targetLineId === null) {
+            for (let i = firstIdx + 1; i < data.lines.length; i++) {
+              if (!selectedIds.has(data.lines[i].id)) {
+                targetLineId = data.lines[i].id;
+                break;
+              }
+            }
+          }
+        }
+      } else {
+        const firstSelected = data.lines.find((l) => selectedIds.has(l.id));
+        if (firstSelected) targetLineId = firstSelected.id;
+      }
+    }
+
     try {
       const res = await fetch("/api/lines/batch", {
         method: "PATCH",
@@ -906,7 +953,26 @@ export default function BattlePage() {
       if (action === "delete") {
         setSelectedIds(new Set());
       }
-      fetchBattle();
+      
+      const newBattleData = await fetchBattle();
+      
+      if (targetLineId !== null && newBattleData?.lines) {
+        setTimeout(() => {
+          const container = transcriptContainerRef.current;
+          const targetEl = container?.querySelector(
+            `[data-line-id="${targetLineId}"]`
+          ) as HTMLElement;
+          
+          if (targetEl && container) {
+            const containerRect = container.getBoundingClientRect();
+            const targetRect = targetEl.getBoundingClientRect();
+            container.scrollTo({
+              top: container.scrollTop + (targetRect.top - containerRect.top) - 60,
+              behavior: "smooth"
+            });
+          }
+        }, 100);
+      }
     } finally {
       setBatchSaving(false);
     }
