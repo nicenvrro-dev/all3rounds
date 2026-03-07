@@ -8,8 +8,8 @@ export default function Footer() {
               Disclaimer
             </h3>
             <p className="max-w-md text-[10px] leading-relaxed text-muted-foreground/60">
-              All3Rounds is a non-profit educational project not affiliated with
-              any battle rap league or organization. All rights belong to their
+              All3Rounds is a non-profit educational project. This site is currently in **Beta**;
+              transcripts are AI-generated and may contain inaccuracies. All rights belong to their
               respective owners.
             </p>
           </div>

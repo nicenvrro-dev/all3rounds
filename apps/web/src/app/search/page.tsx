@@ -7,6 +7,7 @@ import SearchBar from "@/components/SearchBar";
 import ResultCard from "@/components/ResultCard";
 import { SearchResult } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Search, AlertCircle } from "lucide-react";
 import {
   Pagination,
@@ -117,8 +118,11 @@ function SearchResults() {
         {/* Result count */}
         {!loading && !error && query && (
           <div className="mb-5 flex items-baseline gap-2">
-            <h1 className="text-lg font-semibold text-foreground">
+            <h1 className="text-lg font-semibold text-foreground flex items-center gap-2">
               {total === 0 ? "No results" : `${total} results`}
+              {total > 0 && (
+                <Badge variant="outline" className="text-[8px] h-3.5 px-1 bg-primary/5 text-primary/50 border-primary/10 uppercase tracking-tighter">Beta</Badge>
+              )}
             </h1>
             <span className="text-sm text-muted-foreground">
               for &ldquo;{query}&rdquo;

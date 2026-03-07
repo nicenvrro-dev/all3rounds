@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Montserrat } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import BetaBanner from "@/components/BetaBanner";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -31,6 +32,7 @@ export default function RootLayout({
       <body
         className={`${inter.className} antialiased bg-background text-foreground`}
       >
+        <BetaBanner />
         {children}
         <Toaster />
       </body>

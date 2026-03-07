@@ -16,6 +16,7 @@ import Header from "@/components/Header";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1272,9 +1273,14 @@ export default function BattlePage() {
               <div className="mb-2 md:mb-4 flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
                   <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-foreground/70">
-                    Transcript
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-foreground/70">
+                      Transcript
+                    </h2>
+                    <Badge variant="outline" className="text-[7px] px-1.5 py-0 h-3.5 border-primary/20 text-primary/60 font-bold uppercase tracking-tighter rounded-sm bg-primary/5">
+                      AI-Generated
+                    </Badge>
+                  </div>
                   <Button
                     variant="ghost"
                     size="icon"
