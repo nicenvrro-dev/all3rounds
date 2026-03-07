@@ -31,7 +31,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { StatusBadge, STATUS_CONFIG } from "@/components/StatusBadge";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
@@ -51,7 +50,6 @@ import {
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
@@ -326,7 +324,7 @@ function EventSection({
       setIsSubmitting(false);
     }
   };
-  
+
   const handleUpdateDate = async () => {
     if (!newDate || newDate === group.date) return;
     setIsSubmitting(true);
@@ -376,7 +374,7 @@ function EventSection({
           <div className="flex items-center gap-3">
             <div
               className={cn(
-                "h-8 w-[3px] rounded-full transition-all duration-500",
+                "h-8 w-0.75 rounded-full transition-all duration-500",
                 isOpen ? "bg-primary scale-y-100" : "bg-muted scale-y-50",
               )}
             />
@@ -618,7 +616,7 @@ export default function BattlesDirectory({
     initialBattles.length === 48 ? true : false,
   );
   const [totalCount, setTotalCount] = useState<number | null>(initialCount);
-  const [dbYears, setDbYears] = useState<string[]>(initialYears);
+  const dbYears = initialYears;
   const [userRole, setUserRole] = useState("viewer");
 
   useEffect(() => {
@@ -804,8 +802,6 @@ export default function BattlesDirectory({
     [selectedBattles],
   );
 
-  const ITEMS_PER_PAGE = 48;
-
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -826,7 +822,7 @@ export default function BattlesDirectory({
     if (filter !== searchInput && debounceTimerRef.current === null) {
       setSearchInput(filter);
     }
-  }, [filter]);
+  }, [filter, searchInput]);
 
   useEffect(() => {
     // Fallback to LocalStorage for "memory" only (No URL sync for expansion)
@@ -1042,7 +1038,7 @@ export default function BattlesDirectory({
           value={statusFilter}
           onValueChange={(v) => updateSearch({ status: v })}
         >
-          <SelectTrigger className="w-full sm:w-[150px] bg-muted/20 border-border/50 h-10 rounded-xl focus:ring-primary/5">
+          <SelectTrigger className="w-full sm:w-37.5 bg-muted/20 border-border/50 h-10 rounded-xl focus:ring-primary/5">
             <SelectValue placeholder="All Status" />
           </SelectTrigger>
           <SelectContent>
@@ -1073,7 +1069,7 @@ export default function BattlesDirectory({
               <ChevronDown className="h-4 w-4 opacity-50" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-[280px] p-2">
+          <DropdownMenuContent align="start" className="w-70 p-2">
             <div className="grid grid-cols-4 gap-1.5">
               <DropdownMenuItem
                 className={cn(
@@ -1112,7 +1108,7 @@ export default function BattlesDirectory({
           </label>
         )}
         <Select value={sortBy} onValueChange={(v) => updateSearch({ sort: v })}>
-          <SelectTrigger className="w-full sm:w-[140px] bg-muted/20 border-border/50 h-10 rounded-xl focus:ring-primary/5">
+          <SelectTrigger className="w-full sm:w-35 bg-muted/20 border-border/50 h-10 rounded-xl focus:ring-primary/5">
             <div className="flex items-center gap-2">
               <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/60" />
               <SelectValue placeholder="Sort" />
@@ -1328,7 +1324,7 @@ export default function BattlesDirectory({
                 <div className="flex flex-col items-center gap-2">
                   <div className="h-px w-24 bg-border/50" />
                   <p className="text-xs font-medium text-muted-foreground/30 uppercase tracking-wider">
-                    You've reached the end
+                    You&apos;ve reached the end
                   </p>
                 </div>
               )}
@@ -1384,7 +1380,7 @@ export default function BattlesDirectory({
                             className="rounded object-cover"
                             unoptimized
                           />
-                          <span className="text-xs font-medium max-w-[140px] truncate">
+                          <span className="text-xs font-medium max-w-35 truncate">
                             {battle.title}
                           </span>
                           <button
