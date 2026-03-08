@@ -72,8 +72,8 @@ export default function SuggestCorrectionModal({
 
         {submitted ? (
           <div className="flex flex-col items-center justify-center space-y-4 py-10 text-center">
-            <div className="rounded-full bg-green-100 p-3 dark:bg-green-900/30">
-              <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
+            <div className="rounded-full bg-green-900/30 p-3">
+              <CheckCircle2 className="h-8 w-8 text-green-400" />
             </div>
             <div className="space-y-1">
               <h3 className="text-foreground font-semibold">

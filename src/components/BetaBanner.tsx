@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
 import Link from "next/link";
 
 export default function BetaBanner() {
-  const [isVisible, setIsVisible] = useState(() => {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("beta-banner-hidden") !== "true";
-  });
+  const [isVisible, setIsVisible] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const isHidden = localStorage.getItem("beta-banner-hidden") === "true";
+    setIsVisible(!isHidden);
+  }, []);
 
   const handleClose = () => {
     setIsVisible(false);

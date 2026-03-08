@@ -38,7 +38,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${montserrat.variable}`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${montserrat.variable} dark`}
+      style={{ colorScheme: "dark" }}
+    >
       <body
         className={`${inter.className} bg-background text-foreground antialiased`}
       >

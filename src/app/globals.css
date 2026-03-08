@@ -2,42 +2,41 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
-
 :root {
-  /* Hip-hop aesthetic – Light mode (Yellow & Gray contrast) */
-  --background: #fdfdfc;
-  --foreground: #18181b;
-  --card: #ffffff;
-  --card-foreground: #18181b;
-  --popover: #ffffff;
-  --popover-foreground: #18181b;
-  --primary: #eab308; /* Vibrant Yellow */
+  /* Hip-hop aesthetic – Dark mode (Dark Gray & Yellow) */
+  --background: #09090b; /* Very dark gray */
+  --foreground: #fafafa;
+  --card: #18181b; /* Slightly lighter gray */
+  --card-foreground: #fafafa;
+  --popover: #18181b;
+  --popover-foreground: #fafafa;
+  --primary: #facc15; /* Vibrant Yellow */
   --primary-foreground: #09090b;
-  --secondary: #27272a; /* Dark Gray */
+  --secondary: #27272a;
   --secondary-foreground: #fafafa;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --accent: #fef08a;
-  --accent-foreground: #09090b;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #ca8a04; /* Darker yellow */
+  --accent-foreground: #fafafa;
   --destructive: #ef4444;
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #eab308;
-  --radius: 0.25rem; /* Sharper corners */
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: #f4f4f5;
-  --sidebar-foreground: #18181b;
-  --sidebar-primary: #eab308;
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #facc15;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: #18181b;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #facc15;
   --sidebar-primary-foreground: #09090b;
-  --sidebar-accent: #e4e4e7;
-  --sidebar-accent-foreground: #18181b;
-  --sidebar-border: #e4e4e7;
-  --sidebar-ring: #eab308;
+  --sidebar-accent: #27272a;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #27272a;
+  --sidebar-ring: #facc15;
+  --radius: 0.25rem;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -84,77 +83,6 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Hip-hop aesthetic – Dark mode (Dark Gray & Yellow) */
-    --background: #09090b; /* Very dark gray */
-    --foreground: #fafafa;
-    --card: #18181b; /* Slightly lighter gray */
-    --card-foreground: #fafafa;
-    --popover: #18181b;
-    --popover-foreground: #fafafa;
-    --primary: #facc15; /* Vibrant Yellow */
-    --primary-foreground: #09090b;
-    --secondary: #27272a;
-    --secondary-foreground: #fafafa;
-    --muted: #27272a;
-    --muted-foreground: #a1a1aa;
-    --accent: #ca8a04; /* Darker yellow */
-    --accent-foreground: #fafafa;
-    --destructive: #ef4444;
-    --border: #27272a;
-    --input: #27272a;
-    --ring: #facc15;
-    --chart-1: oklch(0.488 0.243 264.376);
-    --chart-2: oklch(0.696 0.17 162.48);
-    --chart-3: oklch(0.769 0.188 70.08);
-    --chart-4: oklch(0.627 0.265 303.9);
-    --chart-5: oklch(0.645 0.246 16.439);
-    --sidebar: #18181b;
-    --sidebar-foreground: #fafafa;
-    --sidebar-primary: #facc15;
-    --sidebar-primary-foreground: #09090b;
-    --sidebar-accent: #27272a;
-    --sidebar-accent-foreground: #fafafa;
-    --sidebar-border: #27272a;
-    --sidebar-ring: #facc15;
-  }
-}
-
-.dark {
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #18181b;
-  --card-foreground: #fafafa;
-  --popover: #18181b;
-  --popover-foreground: #fafafa;
-  --primary: #facc15;
-  --primary-foreground: #09090b;
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  --accent: #ca8a04;
-  --accent-foreground: #fafafa;
-  --destructive: #ef4444;
-  --border: #27272a;
-  --input: #27272a;
-  --ring: #facc15;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #18181b;
-  --sidebar-foreground: #fafafa;
-  --sidebar-primary: #facc15;
-  --sidebar-primary-foreground: #09090b;
-  --sidebar-accent: #27272a;
-  --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #27272a;
-  --sidebar-ring: #facc15;
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -174,6 +102,6 @@
 
 @layer utilities {
   .text-hiphop {
-    @apply font-black uppercase tracking-tighter text-primary drop-shadow-[2px_2px_0px_var(--color-secondary)];
+    @apply text-primary font-black tracking-tighter uppercase drop-shadow-[2px_2px_0px_var(--color-secondary)];
   }
 }

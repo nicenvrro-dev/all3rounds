@@ -91,7 +91,7 @@ export default function AuthButton() {
           {/* Role-based link: Superadmins only */}
           {user.role === "superadmin" && (
             <Link href="/admin/users" passHref>
-              <DropdownMenuItem className="cursor-pointer font-medium text-white focus:bg-white/5 dark:text-amber-500 dark:focus:text-amber-400">
+              <DropdownMenuItem className="cursor-pointer font-medium text-amber-500 focus:bg-white/5 focus:text-amber-400">
                 <ShieldAlert className="mr-2 h-4 w-4" />
                 <span>Admin Panel</span>
               </DropdownMenuItem>

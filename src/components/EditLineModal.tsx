@@ -74,7 +74,7 @@ export default function EditLineModal({
         </DialogHeader>
 
         {error && (
-          <div className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300">
+          <div className="rounded-lg bg-red-900/30 px-4 py-2 text-sm text-red-300">
             {error}
           </div>
         )}
