@@ -104,14 +104,6 @@ function SearchResults() {
           <div className="mb-5 flex items-baseline gap-2">
             <h1 className="text-foreground flex items-center gap-2 text-lg font-semibold">
               {total === 0 ? "No results" : `${total} results`}
-              {total > 0 && (
-                <Badge
-                  variant="outline"
-                  className="bg-primary/5 text-primary/50 border-primary/10 h-3.5 px-1 text-[8px] tracking-tighter uppercase"
-                >
-                  Beta
-                </Badge>
-              )}
             </h1>
             <span className="text-muted-foreground text-sm">
               for &ldquo;{query}&rdquo;

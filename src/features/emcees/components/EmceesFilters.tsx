@@ -32,7 +32,7 @@ export function EmceesFilters({
     <div className="space-y-6">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
-          <h1 className="text-foreground text-3xl font-black tracking-tight uppercase sm:text-4xl">
+          <h1 className="text-foreground text-3xl font-black tracking-tight sm:text-4xl">
             Emcees
           </h1>
           <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase opacity-60 sm:text-sm">

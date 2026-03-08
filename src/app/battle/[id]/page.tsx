@@ -13,7 +13,6 @@ import Header from "@/components/Header";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -689,12 +688,6 @@ export default function BattlePage() {
                     <h2 className="text-foreground/70 text-[11px] font-black tracking-[0.2em] uppercase">
                       Transcript
                     </h2>
-                    <Badge
-                      variant="outline"
-                      className="border-primary/20 text-primary/60 bg-primary/5 h-3.5 rounded-sm px-1.5 py-0 text-[7px] font-bold tracking-tighter uppercase"
-                    >
-                      AI-Generated
-                    </Badge>
                   </div>
                   <Button
                     variant="ghost"
