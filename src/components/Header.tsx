@@ -3,6 +3,7 @@
 import AuthButton from "@/components/AuthButton";
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
+import Image from "next/image";
 
 export default function Header() {
   return (
@@ -14,7 +15,13 @@ export default function Header() {
               href="/"
               className="text-foreground text-xl font-black tracking-tighter uppercase transition-transform hover:scale-105"
             >
-              A3R
+              <Image
+                src="/logo/a3r-logo-full.svg"
+                alt="A3R"
+                width={100}
+                height={100}
+                unoptimized
+              />
             </Link>
           </div>
 

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Montserrat } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
@@ -22,6 +22,14 @@ export const metadata: Metadata = {
   title: "All3Rounds — Filipino Battle Rap Archive",
   description:
     "Search any FlipTop battle line. Find out who said it, which battle, and watch it instantly.",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/apple-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#facc15",
 };
 
 export default function RootLayout({
