@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import EmceesDirectory from "./EmceesDirectory";
+import { EmceesSkeleton } from "@/components/PageSkeletons";
 
 export const revalidate = 600; // 10 minutes
 
@@ -29,15 +30,7 @@ export default async function EmceesPage() {
 
 
   return (
-    <Suspense
-      fallback={
-        <div className="bg-background flex min-h-screen items-center justify-center">
-          <div className="text-muted-foreground animate-pulse text-sm font-black tracking-widest uppercase">
-            Loading Emcees...
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<EmceesSkeleton />}>
       <EmceesDirectory 
         initialEmcees={flattenedEmcees} 
         initialCount={count || 0} 

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import BattlesDirectory from "./BattlesDirectory";
+import { BattlesSkeleton } from "@/components/PageSkeletons";
 
 // ============================================================================
 // Page Export (Server Component)
@@ -53,13 +54,7 @@ export default async function BattlesPage() {
   }
 
   return (
-    <Suspense
-      fallback={
-        <div className="bg-background flex min-h-screen items-center justify-center">
-          <div className="text-muted-foreground text-sm">Loading...</div>
-        </div>
-      }
-    >
+    <Suspense fallback={<BattlesSkeleton />}>
       <BattlesDirectory
         initialBattles={initialBattles || []}
         initialCount={count || 0}
