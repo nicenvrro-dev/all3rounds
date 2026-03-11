@@ -38,7 +38,7 @@ export default function Header() {
                 src="/logo/a3r-logo-full.svg"
                 alt="A3R"
                 width={100}
-                height={100}
+                height={35}
                 unoptimized
               />
             </Link>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +22,13 @@ export default function AuthButton({
   type?: "profile" | "actions" | "all";
 }) {
   const { user, isLoading, isUserLoggedIn } = useAuthStore();
+  const [isMounted, setIsMounted] = useState(false);
   const supabase = createClient();
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsMounted(true), 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleLogin = async () => {
     await supabase.auth.signInWithOAuth({
@@ -41,7 +48,7 @@ export default function AuthButton({
     }
   };
 
-  if (isLoading) {
+  if (!isMounted || isLoading) {
     return <div className="bg-muted h-8 w-8 animate-pulse rounded-full" />;
   }
 
