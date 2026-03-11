@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 interface EmceeSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  emcees: Emcee[];
+  emcees: Emcee[] | { emcees: Emcee[] }; // Support both array and the wrapped object to be safe
   selectedId: string;
   onSelect: (emceeId: string) => void;
 }
@@ -30,9 +30,10 @@ export default function EmceeSearchModal({
   const [search, setSearch] = useState("");
 
   const filteredEmcees = useMemo(() => {
+    const actualEmcees = Array.isArray(emcees) ? emcees : emcees?.emcees || [];
     const query = search.toLowerCase().trim();
-    if (!query) return emcees;
-    return emcees.filter((e) => e.name.toLowerCase().includes(query));
+    if (!query) return actualEmcees;
+    return actualEmcees.filter((e) => e.name.toLowerCase().includes(query));
   }, [emcees, search]);
 
   return (

@@ -161,7 +161,7 @@ describe("GET /api/search", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toHaveProperty("results");
-      // RPC should have been called twice (original + 1 retry)
+      // RPC should have been called twice (original + 1 or 2 retries depending on success)
       expect(mockRange).toHaveBeenCalledTimes(2);
     });
 
@@ -174,6 +174,7 @@ describe("GET /api/search", () => {
       // Both calls timeout
       mockRange
         .mockResolvedValueOnce({ data: null, error: timeoutError, count: null })
+        .mockResolvedValueOnce({ data: null, error: timeoutError, count: null })
         .mockResolvedValueOnce({
           data: null,
           error: timeoutError,
@@ -184,8 +185,8 @@ describe("GET /api/search", () => {
       expect(res.status).toBe(500);
       const body = await res.json();
       expect(body.error).toBe("Search failed. Please try again.");
-      // Should have attempted exactly 2 times (original + 1 retry)
-      expect(mockRange).toHaveBeenCalledTimes(2);
+      // Should have attempted exactly 3 times (original + 2 retries)
+      expect(mockRange).toHaveBeenCalledTimes(3);
     });
 
     it("returns 500 immediately on non-timeout RPC errors without retrying", async () => {

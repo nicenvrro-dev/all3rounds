@@ -41,7 +41,13 @@ export default function EditLineModal({
   useEffect(() => {
     fetch("/api/emcees")
       .then((r) => r.json())
-      .then(setEmcees)
+      .then((data) => {
+        if (data.emcees && Array.isArray(data.emcees)) {
+          setEmcees(data.emcees);
+        } else if (Array.isArray(data)) {
+          setEmcees(data);
+        }
+      })
       .catch(() => {});
   }, []);
 

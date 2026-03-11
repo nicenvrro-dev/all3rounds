@@ -4,9 +4,11 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import SearchBar from "@/components/SearchBar";
 import ResultCard from "@/components/ResultCard";
 import { SearchResult } from "@/lib/types";
+import { Button } from "@/components/ui/button";
 
 import { Search, AlertCircle } from "lucide-react";
 import {
@@ -24,46 +26,109 @@ function SearchResults() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  
+
   const query = searchParams.get("q") || "";
   const page = parseInt(searchParams.get("page") || "1", 10);
 
   const [results, setResults] = useState<SearchResult[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!!query);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [error, setError] = useState("");
+  const [prevQuery, setPrevQuery] = useState(query);
   const { canEdit, isUserLoggedIn } = useAuthStore();
 
-  const fetchResults = useCallback(async (q: string, p: number) => {
-    if (!q) return;
-    setLoading(true);
-    setError("");
+  // Reset loading state when query changes via URL
+  if (query !== prevQuery) {
+    setPrevQuery(query);
+    if (!!query) setLoading(true);
+  }
 
-    try {
-      const res = await fetch(
-        `/api/search?q=${encodeURIComponent(q)}&page=${p}`,
-      );
-      if (res.status === 429) {
-        setError("Too many requests — slow down and try again.");
+  const fetchResults = useCallback(
+    async (q: string, p: number, signal?: AbortSignal) => {
+      if (!q) {
         setLoading(false);
+        setResults([]);
+        setTotal(0);
+        setTotalPages(0);
+        setIsInitialLoad(false);
         return;
       }
-      if (!res.ok) throw new Error("Search failed");
 
-      const data = await res.json();
-      setResults(data.results);
-      setTotal(data.total);
-      setTotalPages(data.totalPages);
-    } catch {
-      setError("Search failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      setLoading(true);
+      setError("");
+
+      const MAX_RETRIES = 2;
+      let attempt = 0;
+
+      const performFetch = async (): Promise<void> => {
+        try {
+          const timeoutSignal = AbortSignal.timeout(10000);
+          const combinedSignal = signal
+            ? AbortSignal.any([signal, timeoutSignal])
+            : timeoutSignal;
+
+          const res = await fetch(
+            `/api/search?q=${encodeURIComponent(q)}&page=${p}`,
+            { signal: combinedSignal },
+          );
+
+          if (res.status === 429) {
+            setError("Too many requests — slow down and try again.");
+            setLoading(false);
+            setIsInitialLoad(false);
+            return;
+          }
+
+          if (!res.ok) throw new Error("Search failed");
+
+          const data = await res.json();
+          if (!signal?.aborted) {
+            setResults(data.results);
+            setTotal(data.total);
+            setTotalPages(data.totalPages);
+          }
+        } catch (err: unknown) {
+          if (err instanceof Error && err.name === "AbortError") {
+            if (attempt < MAX_RETRIES && !signal?.aborted) {
+              attempt++;
+              const delay = Math.pow(2, attempt) * 500;
+              await new Promise((resolve) => setTimeout(resolve, delay));
+              return performFetch();
+            }
+            if (signal?.aborted) return;
+          }
+
+          if (attempt < MAX_RETRIES && !signal?.aborted) {
+            attempt++;
+            const delay = Math.pow(2, attempt) * 500;
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            return performFetch();
+          }
+
+          setError(
+            err instanceof Error && err.name === "AbortError"
+              ? "Search timed out. Please check your connection."
+              : "Search failed. Please try again.",
+          );
+        } finally {
+          if (!signal?.aborted) {
+            setLoading(false);
+            setIsInitialLoad(false);
+          }
+        }
+      };
+
+      await performFetch();
+    },
+    [],
+  );
 
   useEffect(() => {
-    fetchResults(query, page);
+    const controller = new AbortController();
+    fetchResults(query, page, controller.signal);
+    return () => controller.abort();
   }, [query, page, fetchResults]);
 
   const handlePageChange = (newPage: number) => {
@@ -86,7 +151,7 @@ function SearchResults() {
       {/* Results */}
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
         {/* Result count */}
-        {!loading && !error && query && (
+        {!loading && !isInitialLoad && !error && query && (
           <div className="mb-5 flex items-baseline gap-2">
             <h1 className="text-foreground flex items-center gap-2 text-lg font-semibold">
               {total === 0 ? "No results" : `${total} results`}
@@ -99,9 +164,19 @@ function SearchResults() {
 
         {/* Error state */}
         {error && (
-          <div className="border-destructive/30 bg-destructive/5 text-destructive mb-6 flex items-center gap-3 rounded-lg border px-4 py-3 text-sm">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            {error}
+          <div className="border-destructive/30 bg-destructive/5 text-destructive mb-6 flex items-center justify-between rounded-lg border px-4 py-3 text-sm">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {error}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchResults(query, page)}
+              className="border-destructive/20 hover:bg-destructive/10 hover:text-destructive h-8 px-3 text-xs font-bold"
+            >
+              Retry
+            </Button>
           </div>
         )}
 
@@ -132,14 +207,31 @@ function SearchResults() {
         )}
 
         {/* Empty state */}
-        {!loading && !error && query && results.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20">
-            <Search className="text-muted-foreground/30 mb-4 h-12 w-12" />
-            <p className="text-muted-foreground text-sm">
-              No lines matched &ldquo;{query}&rdquo;
-            </p>
-            <p className="text-muted-foreground/60 mt-1 text-xs">
-              Try searching for an emcee name, a punchline, or a Tagalog phrase.
+        {!loading &&
+          !isInitialLoad &&
+          !error &&
+          query &&
+          results.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20">
+              <Search className="text-muted-foreground/30 mb-4 h-12 w-12" />
+              <p className="text-muted-foreground text-sm">
+                No lines matched &ldquo;{query}&rdquo;
+              </p>
+              <p className="text-muted-foreground/60 mt-1 text-xs">
+                Try searching for an emcee name, a punchline, or a phrase.
+              </p>
+            </div>
+          )}
+
+        {/* Initial state (no query) */}
+        {!query && (
+          <div className="flex flex-col items-center justify-center px-4 py-28 text-center">
+            <h2 className="text-foreground mb-3 text-2xl font-black tracking-tight">
+              Try searching now
+            </h2>
+            <p className="text-muted-foreground mx-auto max-w-md text-base leading-relaxed">
+              Find lines, punchlines, or track down matches by entering an
+              emcee&apos;s name or a phrase.
             </p>
           </div>
         )}
@@ -208,7 +300,9 @@ function SearchResults() {
 
                 <PaginationItem>
                   <PaginationNext
-                    onClick={() => page < totalPages && handlePageChange(page + 1)}
+                    onClick={() =>
+                      page < totalPages && handlePageChange(page + 1)
+                    }
                     className={`cursor-pointer ${page === totalPages ? "pointer-events-none opacity-50" : ""}`}
                   />
                 </PaginationItem>
@@ -217,6 +311,8 @@ function SearchResults() {
           </div>
         )}
       </main>
+
+      <Footer />
     </div>
   );
 }

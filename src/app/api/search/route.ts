@@ -81,7 +81,6 @@ export async function GET(request: NextRequest) {
   }
 
   // --- Cache check ---
-  // Using v2 key to ensure we don't return old cached results without speaker_ids
   const cacheKey = `search:v2:${query}:${page}`;
   const cachedData = await getCached(cacheKey);
   if (cachedData) {
@@ -89,15 +88,7 @@ export async function GET(request: NextRequest) {
   }
 
   // --- Hybrid Search with retry on timeout ---
-  // We use a custom Postgres RPC 'search_all_hybrid' which combines:
-  // 1. Full-Text Search (search_vector)
-  // 2. Trigram Similarity (content % search_term)
-  // 3. Boosting for Emcee/Battle name matches
-  //
-  // For new/uncommon search terms, PostgreSQL may timeout on the first attempt
-  // because the trigram index needs to scan cold data pages. A single retry
-  // typically succeeds because those pages are now cached in shared_buffers.
-  const MAX_RETRIES = 1;
+  const MAX_RETRIES = 2;
   let data: SearchRpcRow[] | null = null;
   let error: { code?: string; message?: string } | null = null;
   let count: number | null = null;
@@ -138,7 +129,6 @@ export async function GET(request: NextRequest) {
     round_number: row.round_number,
     speaker_label: row.speaker_label,
     speaker_ids: row.speaker_ids,
-    // Keep emcee for legacy support/fallback
     emcee: row.emcee_id ? { id: row.emcee_id, name: row.emcee_name || "Unknown" } : null,
     battle: {
       id: row.battle_id,
@@ -148,124 +138,96 @@ export async function GET(request: NextRequest) {
       event_date: row.battle_event_date,
       status: row.battle_status,
       url: `https://www.youtube.com/watch?v=${row.battle_youtube_id}`,
-      // Placeholder for lazy-loaded participants
       participants: [] as { label: string; emcee: { id: string; name: string } | null }[],
     },
     rank: row.rank,
     prev_line: undefined as SearchResult["prev_line"],
     next_line: undefined as SearchResult["next_line"],
-    // Array of resolved emcee objects for 2v2/3v3
     emcees: [] as { id: string; name: string }[],
   }));
 
-  // ── Batch Resolve Multi-Speaker Emcees ──
+  // ── Batch Fetch Remaining Data (Emcees, Participants, Context) ──
   if (formattedData && formattedData.length > 0) {
-    // Collect all unique emcee IDs mentioned across all results
     const uniqueEmceeIds = new Set<string>();
     formattedData.forEach(row => {
-      if (row.speaker_ids && row.speaker_ids.length > 0) {
-        row.speaker_ids.forEach(id => uniqueEmceeIds.add(id));
-      } else if (row.emcee?.id) {
-        uniqueEmceeIds.add(row.emcee.id);
-      }
+      row.speaker_ids?.forEach(id => uniqueEmceeIds.add(id));
+      if (row.emcee?.id) uniqueEmceeIds.add(row.emcee.id);
     });
 
-    if (uniqueEmceeIds.size > 0) {
-      const { data: emcees } = await supabase
-        .from("emcees")
-        .select("id, name")
-        .in("id", Array.from(uniqueEmceeIds));
-
-      if (emcees) {
-        const emceeMap = new Map(emcees.map(e => [e.id, e]));
-        formattedData.forEach(row => {
-          const resolved: { id: string; name: string }[] = [];
-          
-          if (row.speaker_ids && row.speaker_ids.length > 0) {
-            row.speaker_ids.forEach(id => {
-              const e = emceeMap.get(id);
-              if (e) resolved.push(e);
-            });
-          } else if (row.emcee) {
-            resolved.push(row.emcee);
-          }
-          row.emcees = resolved;
-        });
-      }
-    }
-
-    // ── Batch Fetch Battle Participants ──
-    // Needed for constructing "Team A vs Team B" labels in the UI
     const uniqueBattleIds = Array.from(new Set(formattedData.map(row => row.battle.id)));
-    if (uniqueBattleIds.length > 0) {
-      const { data: allParticipants } = await supabase
-        .from("battle_participants")
-        .select("battle_id, label, emcee:emcees ( id, name )")
-        .in("battle_id", uniqueBattleIds);
-      
-      if (allParticipants) {
-        interface ParticipantMapping {
-          label: string;
-          emcee: { id: string; name: string } | null;
-        }
-        const participantMap = new Map<string, ParticipantMapping[]>();
-        
-        allParticipants.forEach(p => {
-          if (!participantMap.has(p.battle_id)) participantMap.set(p.battle_id, []);
-          participantMap.get(p.battle_id)?.push({
-            label: p.label,
-            emcee: Array.isArray(p.emcee) ? p.emcee[0] : p.emcee
-          });
-        });
-
-        formattedData.forEach(row => {
-          row.battle.participants = participantMap.get(row.battle.id) || [];
-        });
-      }
-    }
-  }
-
-  // ── Fetch Conversation Context (Prev/Next Lines) ──
-  if (formattedData && formattedData.length > 0) {
+    
     const contextLineIds = new Set<number>();
     formattedData.forEach((row) => {
       contextLineIds.add(row.id - 1);
       contextLineIds.add(row.id + 1);
     });
-
     const queryIds = Array.from(contextLineIds);
 
-    if (queryIds.length > 0) {
-      const { data: contextLines } = await supabase
-        .from("lines")
-        .select("id, content, battle_id, speaker_label, round_number")
-        .in("id", queryIds);
+    const [emceesResult, participantsResult, contextResult] = await Promise.all([
+      uniqueEmceeIds.size > 0 
+        ? supabase.from("emcees").select("id, name").in("id", Array.from(uniqueEmceeIds))
+        : Promise.resolve({ data: [] as { id: string; name: string }[] | null, error: null }),
+      
+      uniqueBattleIds.length > 0
+        ? supabase.from("battle_participants").select("battle_id, label, emcee:emcees ( id, name )").in("battle_id", uniqueBattleIds)
+        : Promise.resolve({ data: [] as { battle_id: string; label: string; emcee: { id: string; name: string } | null }[] | null, error: null }),
 
-      if (contextLines) {
-        const contextMap = new Map(contextLines.map(line => [line.id, line]));
+      queryIds.length > 0
+        ? supabase.from("lines").select("id, content, battle_id, speaker_label, round_number").in("id", queryIds)
+        : Promise.resolve({ data: [] as { id: number; content: string; battle_id: string; speaker_label: string | null; round_number: number | null }[] | null, error: null })
+    ]);
 
-        formattedData.forEach((row) => {
-          const prev = contextMap.get(row.id - 1);
-          if (prev && prev.battle_id === row.battle.id) {
-            row.prev_line = {
-              id: prev.id,
-              content: prev.content,
-              speaker_label: prev.speaker_label,
-              round_number: prev.round_number,
-            };
-          }
-
-          const next = contextMap.get(row.id + 1);
-          if (next && next.battle_id === row.battle.id) {
-            row.next_line = {
-              id: next.id,
-              content: next.content,
-              speaker_label: next.speaker_label,
-              round_number: next.round_number,
-            };
-          }
+    if (emceesResult.data) {
+      const emceeMap = new Map(emceesResult.data.map(e => [e.id, e]));
+      formattedData.forEach(row => {
+        const resolved: { id: string; name: string }[] = [];
+        row.speaker_ids?.forEach(id => {
+          const e = emceeMap.get(id);
+          if (e) resolved.push(e);
         });
-      }
+        if (resolved.length === 0 && row.emcee) {
+          resolved.push(row.emcee);
+        }
+        row.emcees = resolved;
+      });
+    }
+
+    if (participantsResult.data) {
+      const participantMap = new Map<string, { label: string; emcee: { id: string; name: string } | null }[]>();
+      participantsResult.data.forEach(p => {
+        if (!participantMap.has(p.battle_id)) participantMap.set(p.battle_id, []);
+        participantMap.get(p.battle_id)?.push({
+          label: p.label,
+          emcee: Array.isArray(p.emcee) ? p.emcee[0] : p.emcee
+        });
+      });
+      formattedData.forEach(row => {
+        row.battle.participants = participantMap.get(row.battle.id) || [];
+      });
+    }
+
+    if (contextResult.data) {
+      const contextMap = new Map(contextResult.data.map(line => [line.id, line]));
+      formattedData.forEach((row) => {
+        const prev = contextMap.get(row.id - 1);
+        if (prev && prev.battle_id === row.battle.id) {
+          row.prev_line = {
+            id: prev.id,
+            content: prev.content,
+            speaker_label: prev.speaker_label,
+            round_number: prev.round_number,
+          };
+        }
+        const next = contextMap.get(row.id + 1);
+        if (next && next.battle_id === row.battle.id) {
+          row.next_line = {
+            id: next.id,
+            content: next.content,
+            speaker_label: next.speaker_label,
+            round_number: next.round_number,
+          };
+        }
+      });
     }
   }
 
@@ -276,6 +238,6 @@ export async function GET(request: NextRequest) {
     totalPages: Math.ceil((count || 0) / limit),
   };
 
-  await setCached(cacheKey, result, 120); // 2 minutes
+  await setCached(cacheKey, result, 120);
   return NextResponse.json(result);
 }
