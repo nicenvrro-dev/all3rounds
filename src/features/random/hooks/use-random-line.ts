@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SearchResult } from "@/lib/types";
 
+import { useToast } from "@/hooks/use-toast";
+
 export function useRandomLine(canEdit: boolean) {
+  const { toast } = useToast();
   const [line, setLine] = useState<SearchResult | null>(null);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(true);
@@ -63,12 +66,17 @@ export function useRandomLine(canEdit: boolean) {
         }
       } catch {
         setError("Auto-save failed");
+        toast({
+          title: "Error",
+          description: "Auto-save failed. Your changes might not be saved.",
+          variant: "destructive",
+        });
       } finally {
         setSaving(false);
         saveInProgress.current = false;
       }
     },
-    [canEdit],
+    [canEdit, toast],
   );
 
   const loadRandomLine = useCallback(async () => {
@@ -87,10 +95,17 @@ export function useRandomLine(canEdit: boolean) {
       setContent(data.line.content);
     } catch {
       setError("Failed to fetch random line. Try again.");
+      if (lineRef.current) {
+        toast({
+          title: "Error",
+          description: "Failed to load the next random line. Try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
-  }, [performAutoSave]);
+  }, [performAutoSave, toast]);
 
   useEffect(() => {
     loadRandomLineRef.current = loadRandomLine;
@@ -136,12 +151,18 @@ export function useRandomLine(canEdit: boolean) {
         loadRandomLine();
       }, 2000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "An error occurred.");
+      const errMsg = err instanceof Error ? err.message : "An error occurred.";
+      setError(errMsg);
+      toast({
+        title: "Error",
+        description: errMsg,
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
       saveInProgress.current = false;
     }
-  }, [line, content, loadRandomLine, saved, loading]);
+  }, [line, content, loadRandomLine, saved, loading, toast]);
 
   return {
     line,

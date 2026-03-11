@@ -4,9 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET() {
   const supabase = await createClient();
 
+  // Optimize count query by selecting minimum columns
   const { count, error: countError } = await supabase
     .from("lines")
-    .select("*, battle:battles!inner(status)", { count: "exact", head: true })
+    .select("id, battle:battles!inner(id)", { count: "exact", head: true })
     .neq("battle.status", "raw");
 
   if (countError || !count) {
