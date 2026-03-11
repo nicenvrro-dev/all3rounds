@@ -24,8 +24,7 @@ export default async function BattlesPage() {
       count: "exact",
     })
     .neq("status", "excluded")
-    .order("event_date", { ascending: false, nullsFirst: false })
-    .range(0, 47);
+    .order("event_date", { ascending: false, nullsFirst: false });
 
   // Fetch all filter data once
   const { data: filterData } = await supabase

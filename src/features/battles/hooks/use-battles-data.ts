@@ -31,6 +31,8 @@ export type EventGroup = {
 // Helpers
 // ============================================================================
 
+const EVENTS_PER_PAGE = 5;
+
 export function groupByEvent(
   battles: Battle[],
   sortBy: string = "latest",
@@ -84,10 +86,7 @@ export function useBattlesData(
 
   const [battles, setBattles] = useState<Battle[]>(initialBattles);
   const [loading, setLoading] = useState(false);
-  const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [error, setError] = useState("");
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(initialBattles.length === 48);
   const [totalCount, setTotalCount] = useState<number | null>(initialCount);
   const dbYears = initialYears;
 
@@ -96,11 +95,11 @@ export function useBattlesData(
   const statusFilter = searchParams.get("status") || "all";
   const yearFilter = searchParams.get("year") || "all";
   const sortBy = searchParams.get("sort") || "latest";
+  const page = parseInt(searchParams.get("page") || "1", 10);
 
   // -- Local UI State --
   const [searchInput, setSearchInput] = useState(filter);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const observerTarget = useRef<HTMLDivElement>(null);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -134,23 +133,18 @@ export function useBattlesData(
     }
   }, []);
 
+  // Fetch ALL battles matching filters (no per-row pagination)
   const fetchBattles = useCallback(
-    async (
-      currentPage: number,
-      currentFilters: {
-        q: string;
-        status: string;
-        year: string;
-        sort: string;
-      },
-      isInitial = false,
-    ) => {
-      if (isInitial) setLoading(true);
-      else setIsFetchingMore(true);
+    async (currentFilters: {
+      q: string;
+      status: string;
+      year: string;
+      sort: string;
+    }) => {
+      setLoading(true);
 
       try {
         const params = new URLSearchParams();
-        params.set("page", currentPage.toString());
         if (currentFilters.q) params.set("q", currentFilters.q);
         if (currentFilters.status && currentFilters.status !== "all")
           params.set("status", currentFilters.status);
@@ -168,22 +162,10 @@ export function useBattlesData(
           throw new Error(msg);
         }
 
-        const { battles: incomingBattles, count, hasMore } = await res.json();
+        const { battles: incomingBattles, count } = await res.json();
 
-        if (isInitial) {
-          setBattles(incomingBattles || []);
-        } else if (incomingBattles) {
-          setBattles((prev) => {
-            const existingIds = new Set(prev.map((b) => b.id));
-            const uniqueNewBattles = incomingBattles.filter(
-              (b: Battle) => !existingIds.has(b.id),
-            );
-            return [...prev, ...uniqueNewBattles];
-          });
-        }
-
+        setBattles(incomingBattles || []);
         setTotalCount(count);
-        setHasMore(hasMore);
       } catch (err) {
         console.error("Fetch error:", err);
         setError(
@@ -191,13 +173,12 @@ export function useBattlesData(
         );
       } finally {
         setLoading(false);
-        setIsFetchingMore(false);
       }
     },
     [],
   );
 
-  // Effect to handle INITIAL fetch when filters change
+  // Effect: fetch when filters change (not page — page is client-side)
   const isFirstMount = useRef(true);
 
   useEffect(() => {
@@ -208,76 +189,50 @@ export function useBattlesData(
         statusFilter !== "all" ||
         yearFilter !== "all" ||
         sortBy !== "latest";
-      if (!isFiltered) return;
+      if (!isFiltered) return; // Use initial server data
     }
 
-    setPage(0);
-    fetchBattles(
-      0,
-      { q: filter, status: statusFilter, year: yearFilter, sort: sortBy },
-      true,
-    );
+    fetchBattles({
+      q: filter,
+      status: statusFilter,
+      year: yearFilter,
+      sort: sortBy,
+    });
   }, [filter, statusFilter, yearFilter, sortBy, fetchBattles]);
 
-  // Infinite Scroll Handler
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (
-          entries[0].isIntersecting &&
-          hasMore &&
-          !loading &&
-          !isFetchingMore
-        ) {
-          const nextPage = page + 1;
-          setPage(nextPage);
-          fetchBattles(
-            nextPage,
-            { q: filter, status: statusFilter, year: yearFilter, sort: sortBy },
-            false,
-          );
-        }
-      },
-      { threshold: 0.1, rootMargin: "200px" },
-    );
-
-    const currentTarget = observerTarget.current;
-    if (currentTarget) {
-      observer.observe(currentTarget);
-    }
-
-    return () => {
-      if (currentTarget) {
-        observer.unobserve(currentTarget);
-      }
-    };
-  }, [
-    hasMore,
-    loading,
-    isFetchingMore,
-    page,
-    filter,
-    statusFilter,
-    yearFilter,
-    sortBy,
-    fetchBattles,
-  ]);
-
   // Update URL helpers
-
   const updateSearch = useCallback(
     (params: Record<string, string | null>) => {
       const newParams = new URLSearchParams(searchParams.toString());
+
+      // Reset page when filters change (not when page itself is being set)
+      if (!("page" in params) && newParams.has("page")) {
+        newParams.delete("page");
+      }
+
       Object.entries(params).forEach(([key, value]) => {
-        if (value === null || value === "all" || value === "") {
+        if (
+          value === null ||
+          value === "all" ||
+          value === "" ||
+          (key === "page" && value === "1")
+        ) {
           newParams.delete(key);
         } else {
           newParams.set(key, value);
         }
       });
-      router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
+      router.push(`${pathname}?${newParams.toString()}`, { scroll: false });
     },
     [searchParams, router, pathname],
+  );
+
+  const handlePageChange = useCallback(
+    (newPage: number) => {
+      updateSearch({ page: newPage > 1 ? newPage.toString() : null });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [updateSearch],
   );
 
   const handleToggleGroup = useCallback((name: string, isOpen: boolean) => {
@@ -308,9 +263,22 @@ export function useBattlesData(
     return Array.from(years).sort((a, b) => b.localeCompare(a));
   }, [dbYears, battles, yearFilter]);
 
+  // All event groups from all battles
   const eventGroups = useMemo(
     () => groupByEvent(battles, sortBy, !!filter),
     [battles, sortBy, filter],
+  );
+
+  // Client-side event-based pagination
+  const totalPages = Math.max(1, Math.ceil(eventGroups.length / EVENTS_PER_PAGE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedEventGroups = useMemo(
+    () =>
+      eventGroups.slice(
+        (safePage - 1) * EVENTS_PER_PAGE,
+        safePage * EVENTS_PER_PAGE,
+      ),
+    [eventGroups, safePage],
   );
 
   const clearFilters = useCallback(() => {
@@ -329,10 +297,13 @@ export function useBattlesData(
     battles,
     setBattles,
     loading,
-    isFetchingMore,
     error,
-    hasMore,
     totalCount,
+    page: safePage,
+    totalPages,
+    eventGroups,
+    paginatedEventGroups,
+    handlePageChange,
     filter,
     statusFilter,
     yearFilter,
@@ -340,13 +311,11 @@ export function useBattlesData(
     searchInput,
     setSearchInput,
     expandedGroups,
-    observerTarget,
     debounceTimerRef,
     handleSearchChange,
     updateSearch,
     handleToggleGroup,
     availableYears,
-    eventGroups,
     clearFilters,
     hasActiveFilters,
   };

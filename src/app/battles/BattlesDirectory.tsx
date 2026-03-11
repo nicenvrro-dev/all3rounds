@@ -5,7 +5,6 @@ import Footer from "@/components/Footer";
 import Image from "next/image";
 import {
   ChevronDown,
-  Mic2,
   Search,
   ArrowUpDown,
   X,
@@ -16,6 +15,7 @@ import {
   ChevronUp,
   Calendar,
 } from "lucide-react";
+import { DataPagination } from "@/components/admin/DataPagination";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -71,10 +71,11 @@ export default function BattlesDirectory({
     battles,
     setBattles,
     loading,
-    isFetchingMore,
     error,
-    hasMore,
     totalCount,
+    page,
+    paginatedEventGroups,
+    handlePageChange,
     filter,
     statusFilter,
     yearFilter,
@@ -82,7 +83,6 @@ export default function BattlesDirectory({
     searchInput,
     setSearchInput,
     expandedGroups,
-    observerTarget,
     debounceTimerRef,
     handleSearchChange,
     updateSearch,
@@ -311,42 +311,24 @@ export default function BattlesDirectory({
         )}
 
         {loading ? (
-          <div className="space-y-10">
-            {[...Array(2)].map((_, gi) => (
-              <div key={gi} className="space-y-4">
-                <Skeleton className="h-6 w-40" />
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {[...Array(4)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="border-border overflow-hidden rounded-lg border"
-                    >
-                      <Skeleton className="aspect-video w-full rounded-none" />
-                      <div className="space-y-2 p-3.5">
-                        <Skeleton className="h-4 w-3/4" />
-                        <Skeleton className="h-3 w-1/2" />
-                      </div>
-                    </div>
-                  ))}
+          <div className="space-y-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="border-border/10 bg-card/50 flex items-center justify-between rounded-2xl border p-5"
+              >
+                <div className="flex w-1/2 items-center gap-4 pb-12">
+                  <Skeleton className="h-5 w-5 rounded-md" />
+                  <Skeleton className="h-6 w-full max-w-[300px]" />
                 </div>
               </div>
             ))}
           </div>
         ) : battles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            {filter ? (
-              <Search className="text-muted-foreground/30 mb-4 h-12 w-12" />
-            ) : (
-              <Mic2 className="text-muted-foreground/40 mb-4 h-12 w-12" />
-            )}
+          <div className="flex flex-col items-center justify-center py-32 text-center">
             <h3 className="text-foreground mb-1 text-lg font-semibold">
-              {filter ? "No results found" : "No battles yet"}
+              {filter ? "No results found" : "No battles found"}
             </h3>
-            <p className="text-muted-foreground max-w-sm text-sm">
-              {filter
-                ? `We couldn't find anything matching "${filter}". Try adjusting your spellings or using fewer keywords.`
-                : "No battles have been transcribed yet."}
-            </p>
             {hasActiveFilters && (
               <Button variant="outline" className="mt-6" onClick={clearFilters}>
                 <X className="mr-2 h-4 w-4" /> Clear all filters
@@ -355,7 +337,7 @@ export default function BattlesDirectory({
           </div>
         ) : (
           <div className="space-y-10">
-            {eventGroups.map((group) => (
+            {paginatedEventGroups.map((group) => (
               <EventSection
                 key={group.name}
                 group={group}
@@ -379,28 +361,12 @@ export default function BattlesDirectory({
               />
             ))}
 
-            <div
-              ref={observerTarget}
-              className="flex w-full justify-center py-12"
-            >
-              {isFetchingMore && (
-                <div className="flex flex-col items-center gap-3">
-                  <div className="border-primary/20 border-t-primary h-6 w-6 animate-spin rounded-full border-2" />
-                  <span className="text-muted-foreground/40 text-[10px] font-bold tracking-[0.2em] uppercase">
-                    Loading more
-                  </span>
-                </div>
-              )}
-
-              {!hasMore && battles.length > 0 && (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="bg-border/50 h-px w-24" />
-                  <p className="text-muted-foreground/30 text-xs font-medium tracking-wider uppercase">
-                    You&apos;ve reached the end
-                  </p>
-                </div>
-              )}
-            </div>
+            <DataPagination
+              page={page}
+              totalItems={eventGroups.length}
+              itemsPerPage={5}
+              onPageChange={handlePageChange}
+            />
           </div>
         )}
       </main>

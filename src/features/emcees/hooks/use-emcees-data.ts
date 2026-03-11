@@ -1,33 +1,41 @@
 "use client";
 
 import { useCallback, useEffect, useState, useRef } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Emcee, EmceeSortOption } from "../types";
 
+const ITEMS_PER_PAGE = 48;
+
 export function useEmceesData(initialEmcees: Emcee[], initialCount: number) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
   const [emcees, setEmcees] = useState<Emcee[]>(initialEmcees);
   const [totalCount, setTotalCount] = useState(initialCount);
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(initialCount > initialEmcees.length);
-  
+
+  const page = parseInt(searchParams.get("page") || "1", 10);
+
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<EmceeSortOption>("name_asc");
   const [countRange, setCountRange] = useState("all");
 
-  const observerTarget = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const filtersRef = useRef({ search, sort, countRange });
+  filtersRef.current = { search, sort, countRange };
+  const lastFetchedPage = useRef(1);
 
   const fetchEmcees = useCallback(
     async (
       currentPage: number,
-      filters: { q: string; sort: string; minBattles: string },
-      isInitial = false
+      filters: { q: string; sort: string; minBattles: string }
     ) => {
       setLoading(true);
       try {
         const params = new URLSearchParams();
         params.set("page", currentPage.toString());
-        params.set("limit", "48");
+        params.set("limit", ITEMS_PER_PAGE.toString());
         if (filters.q) params.set("q", filters.q);
         if (filters.sort) params.set("sort", filters.sort);
         if (filters.minBattles && filters.minBattles !== "all") {
@@ -37,21 +45,11 @@ export function useEmceesData(initialEmcees: Emcee[], initialCount: number) {
 
         const res = await fetch(`/api/emcees?${params.toString()}`);
         if (!res.ok) throw new Error("Failed to fetch");
-        
+
         const data = await res.json();
-        
-        if (isInitial) {
-          setEmcees(data.emcees);
-        } else {
-          setEmcees((prev) => {
-            const existingIds = new Set(prev.map(e => e.id));
-            const uniqueNew = data.emcees.filter((e: Emcee) => !existingIds.has(e.id));
-            return [...prev, ...uniqueNew];
-          });
-        }
-        
+
+        setEmcees(data.emcees);
         setTotalCount(data.totalCount);
-        setHasMore(data.hasMore);
       } catch (err) {
         console.error("Error fetching emcees:", err);
       } finally {
@@ -61,40 +59,68 @@ export function useEmceesData(initialEmcees: Emcee[], initialCount: number) {
     []
   );
 
-  // Re-fetch when filters change
+  // Effect: When filters change, always fetch page 1 and reset URL page
+  const isFirstFilterRun = useRef(true);
   useEffect(() => {
+    if (isFirstFilterRun.current) {
+      isFirstFilterRun.current = false;
+      return;
+    }
+
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
 
     debounceTimerRef.current = setTimeout(() => {
-      setPage(1);
-      fetchEmcees(1, { q: search, sort, minBattles: countRange }, true);
+      fetchEmcees(1, { q: search, sort, minBattles: countRange });
+      lastFetchedPage.current = 1;
+
+      // Reset page in URL if we're not on page 1
+      const currentUrlPage = parseInt(
+        new URLSearchParams(window.location.search).get("page") || "1",
+        10
+      );
+      if (currentUrlPage > 1) {
+        const newParams = new URLSearchParams(window.location.search);
+        newParams.delete("page");
+        router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
+      }
     }, 300);
 
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
-  }, [search, sort, countRange, fetchEmcees]);
+  }, [search, sort, countRange, fetchEmcees, pathname, router]);
 
-  // Infinite Scroll Observer
+  // Effect: When page changes via URL (pagination click), fetch that page
+  const isFirstPageRun = useRef(true);
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading) {
-          const nextPage = page + 1;
-          setPage(nextPage);
-          fetchEmcees(nextPage, { q: search, sort, minBattles: countRange });
-        }
-      },
-      { threshold: 0.1, rootMargin: "100px" }
-    );
+    if (isFirstPageRun.current) {
+      isFirstPageRun.current = false;
+      if (page === 1) {
+        lastFetchedPage.current = 1;
+        return; // Initial data covers page 1
+      }
+      // page > 1 on initial load — fall through to fetch
+    }
 
-    const target = observerTarget.current;
-    if (target) observer.observe(target);
+    if (page === lastFetchedPage.current) return;
+    lastFetchedPage.current = page;
 
-    return () => {
-      if (target) observer.unobserve(target);
-    };
-  }, [hasMore, loading, page, search, sort, countRange, fetchEmcees]);
+    const f = filtersRef.current;
+    fetchEmcees(page, { q: f.search, sort: f.sort, minBattles: f.countRange });
+  }, [page, fetchEmcees]);
+
+  const handlePageChange = useCallback(
+    (newPage: number) => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      if (newPage <= 1) {
+        newParams.delete("page");
+      } else {
+        newParams.set("page", newPage.toString());
+      }
+      router.push(`${pathname}?${newParams.toString()}`, { scroll: true });
+    },
+    [searchParams, router, pathname]
+  );
 
   return {
     emcees,
@@ -105,8 +131,8 @@ export function useEmceesData(initialEmcees: Emcee[], initialCount: number) {
     setSort,
     countRange,
     setCountRange,
+    page,
+    handlePageChange,
     totalCount,
-    hasMore,
-    observerTarget,
   };
 }

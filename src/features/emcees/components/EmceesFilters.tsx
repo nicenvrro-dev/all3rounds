@@ -86,8 +86,8 @@ export function EmceesFilters({
           <SelectContent>
             <SelectItem value="all">All Counts</SelectItem>
             <SelectItem value="10+">10+ Battles</SelectItem>
+            <SelectItem value="20+">20+ Battles</SelectItem>
             <SelectItem value="30+">30+ Battles</SelectItem>
-            <SelectItem value="50+">50+ Battles</SelectItem>
           </SelectContent>
         </Select>
       </div>

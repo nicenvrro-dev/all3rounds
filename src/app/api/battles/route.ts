@@ -4,9 +4,6 @@ import { getCached, setCached } from "@/lib/cache";
 import { checkRateLimit, getRateLimitHeaders } from "@/lib/rate-limit";
 import { parseSearchTokens, scoreBattle } from "@/lib/fuzzy-utils";
 
-// Use same constant as frontend
-const ITEMS_PER_PAGE = 48;
-
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
@@ -14,9 +11,6 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status") || "all";
   const year = searchParams.get("year") || "all";
   const sort = searchParams.get("sort") || "latest";
-
-  const rawPage = parseInt(searchParams.get("page") || "0", 10);
-  const page = Number.isFinite(rawPage) && rawPage >= 0 ? rawPage : 0;
 
   // --- Rate limiting ---
   const rateLimitKey = `battles_dir:${request.headers.get("x-forwarded-for") || "unknown"}`;
@@ -33,8 +27,7 @@ export async function GET(request: NextRequest) {
   }
 
   // --- Cache check ---
-  // Create a deterministic cache key based on query params
-  const cacheKey = `battles:page:${page}:q:${q || "none"}:status:${status}:year:${year}:sort:${sort}`;
+  const cacheKey = `battles:q:${q || "none"}:status:${status}:year:${year}:sort:${sort}`;
 
   const cachedData = await getCached(cacheKey);
   if (cachedData) {
@@ -56,8 +49,6 @@ export async function GET(request: NextRequest) {
         count = 0;
       } else {
         // 2. Broad Candidate Fetch
-        // We fetch matches for ANY token to ensure we don't miss reversed names or partials.
-        // We fetch up to 500 candidates to re-rank in-memory for precision.
         let query = supabase
           .from("battles")
           .select("id, title, youtube_id, event_name, event_date, status, url")
@@ -88,8 +79,6 @@ export async function GET(request: NextRequest) {
           error = broadResult.error;
         } else {
           // 3. Precision Scoring & Re-ranking
-          // The database handles the broad filtering, but we handle the sorting Logic
-          // (order independent matching, sequence bonuses, and typos) in TypeScript.
           const candidates = broadResult.data || [];
 
           const scored = candidates
@@ -97,13 +86,11 @@ export async function GET(request: NextRequest) {
               battle,
               score: scoreBattle(battle, tokens),
             }))
-            .filter((b) => b.score > 0) // Filter out noise matches
+            .filter((b) => b.score > 0)
             .sort((a, b) => {
-              // Primary sort: Search Relevance Score
               if (b.score !== a.score) {
                 return b.score - a.score;
               }
-              // Secondary sort: Recency (date)
               const dateA = a.battle.event_date
                 ? new Date(a.battle.event_date).getTime()
                 : 0;
@@ -114,16 +101,12 @@ export async function GET(request: NextRequest) {
               return dateB - dateA;
             });
 
-          // 4. Pagination
           count = scored.length;
-          const from = page * ITEMS_PER_PAGE;
-          data = scored
-            .slice(from, from + ITEMS_PER_PAGE)
-            .map((s) => ({ ...s.battle, score: s.score }));
+          data = scored.map((s) => ({ ...s.battle, score: s.score }));
         }
       }
     } else {
-      // Standard fetch when no search query
+      // Standard fetch — return ALL battles matching filters (no per-row pagination)
       let query = supabase
         .from("battles")
         .select("id, title, youtube_id, event_name, event_date, status, url", {
@@ -149,11 +132,6 @@ export async function GET(request: NextRequest) {
         nullsFirst: false,
       });
 
-      // Apply Pagination
-      const from = page * ITEMS_PER_PAGE;
-      const to = from + ITEMS_PER_PAGE - 1;
-      query = query.range(from, to);
-
       const result = await query;
       data = result.data;
       error = result.error;
@@ -168,11 +146,9 @@ export async function GET(request: NextRequest) {
     const payload = {
       battles: data || [],
       count: count || 0,
-      hasMore: (data || []).length === ITEMS_PER_PAGE,
     };
 
     // --- Cache Save ---
-    // Cache for 5 minutes (300 seconds) to match SSR reval
     await setCached(cacheKey, payload, 300);
 
     return NextResponse.json(payload, {

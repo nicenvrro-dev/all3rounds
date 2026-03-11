@@ -3,6 +3,16 @@ import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
 import { useEmceesData } from "../use-emcees-data";
 import { Emcee } from "../../types";
 
+// Mock Next.js navigation hooks
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+  }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/emcees",
+}));
+
 const mockInitialEmcees: Emcee[] = [
   { id: "1", name: "Anygma", aka: [], battle_count: 5 },
 ];
@@ -11,21 +21,13 @@ describe("useEmceesData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
-    
-    // Mock IntersectionObserver
-    vi.stubGlobal("IntersectionObserver", vi.fn().mockImplementation(() => ({
-      observe: vi.fn(),
-      unobserve: vi.fn(),
-      disconnect: vi.fn(),
-    })));
   });
 
   it("initializes with provided data", () => {
     const { result } = renderHook(() => useEmceesData(mockInitialEmcees, 1));
-    
+
     expect(result.current.emcees).toEqual(mockInitialEmcees);
-    expect(result.current.totalCount).toBe(1);
-    expect(result.current.hasMore).toBe(false);
+    expect(result.current.page).toBe(1);
   });
 
   it("updates search query and triggers fetch", async () => {
@@ -34,12 +36,11 @@ describe("useEmceesData", () => {
       json: async () => ({
         emcees: [{ id: "2", name: "Loonie", aka: [], battle_count: 50 }],
         totalCount: 1,
-        hasMore: false,
       }),
     });
 
     const { result } = renderHook(() => useEmceesData(mockInitialEmcees, 1));
-    
+
     act(() => {
       result.current.setSearch("Loonie");
     });
@@ -57,12 +58,11 @@ describe("useEmceesData", () => {
       json: async () => ({
         emcees: [{ id: "3", name: "Abra", aka: [], battle_count: 30 }],
         totalCount: 1,
-        hasMore: false,
       }),
     });
 
     const { result } = renderHook(() => useEmceesData(mockInitialEmcees, 1));
-    
+
     act(() => {
       result.current.setSort("name_desc");
     });

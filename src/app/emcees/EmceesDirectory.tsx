@@ -2,11 +2,12 @@
 
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Mic2, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Emcee } from "@/features/emcees/types";
 import { EmceeCard } from "@/features/emcees/components/EmceeCard";
 import { EmceesFilters } from "@/features/emcees/components/EmceesFilters";
 import { useEmceesData } from "@/features/emcees/hooks/use-emcees-data";
+import { DataPagination } from "@/components/admin/DataPagination";
 
 interface EmceesDirectoryProps {
   initialEmcees: Emcee[];
@@ -27,8 +28,8 @@ export default function EmceesDirectory({
     countRange,
     setCountRange,
     totalCount,
-    hasMore,
-    observerTarget,
+    page,
+    handlePageChange,
   } = useEmceesData(initialEmcees, initialCount);
 
   return (
@@ -48,38 +49,42 @@ export default function EmceesDirectory({
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {emcees.length === 0 && !loading ? (
-            <div className="col-span-full py-32 text-center">
-              <Mic2 className="mx-auto mb-4 h-12 w-12 text-white/5" />
-              <p className="text-sm font-bold tracking-[0.2em] text-white/20 uppercase">
-                No emcees found matching {`"${search}"`}
-              </p>
+        {loading ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div
+                key={i}
+                className="relative flex min-h-40 flex-col rounded-3xl border border-white/5 bg-[#141417] p-6"
+              >
+                <div className="mb-2 flex items-start justify-between gap-4">
+                  <Skeleton className="h-6 w-3/4 rounded-md" />
+                  <Skeleton className="h-5 w-16 shrink-0 rounded-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {emcees.length === 0 ? (
+                <div className="col-span-full flex flex-col items-center justify-center py-32 text-center">
+                  <h3 className="text-foreground mb-1 text-lg font-semibold">
+                    No emcees found
+                  </h3>
+                </div>
+              ) : (
+                emcees.map((e) => <EmceeCard key={e.id} emcee={e} />)
+              )}
             </div>
-          ) : (
-            emcees.map((e) => <EmceeCard key={e.id} emcee={e} />)
-          )}
-        </div>
 
-        {/* Loading / Pagination state */}
-        <div
-          ref={observerTarget}
-          className="mt-12 flex h-24 items-center justify-center"
-        >
-          {loading && (
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="text-primary h-6 w-6 animate-spin" />
-              <span className="text-[10px] font-black tracking-widest text-white/20 uppercase">
-                Loading more emcees...
-              </span>
-            </div>
-          )}
-          {!hasMore && emcees.length > 0 && (
-            <span className="text-[10px] font-black tracking-widest text-white/10 uppercase">
-              End of directory
-            </span>
-          )}
-        </div>
+            <DataPagination
+              page={page}
+              totalItems={totalCount}
+              itemsPerPage={48}
+              onPageChange={handlePageChange}
+            />
+          </>
+        )}
       </main>
 
       <Footer />
