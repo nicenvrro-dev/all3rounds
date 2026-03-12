@@ -1,4 +1,6 @@
 "use client";
+ 
+import { useState } from "react";
 
 import { useAuthStore } from "@/stores/auth-store";
 import Header from "@/components/Header";
@@ -26,6 +28,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useRandomLine } from "@/features/random/hooks/use-random-line";
 import { useVideoLooping } from "@/features/random/hooks/use-video-looping";
+import { LoginModal } from "@/components/LoginModal";
 
 function RandomLineSkeleton() {
   return (
@@ -64,6 +67,7 @@ function RandomLineSkeleton() {
 
 export default function RandomPage() {
   const { canEdit, isUserLoggedIn } = useAuthStore();
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   const {
     line,
@@ -169,23 +173,35 @@ export default function RandomPage() {
                               </button>
                             </TooltipTrigger>
                             <TooltipContent
-                              side="right"
-                              className="bg-popover border-border/50 max-w-60 space-y-2 p-3"
+                              side="bottom"
+                              align="end"
+                              className="bg-popover border-border/50 max-w-64 space-y-2.5 p-4 shadow-xl sm:max-w-72"
                             >
-                              <h4 className="text-foreground flex items-center gap-2 text-[10px] font-bold tracking-wider uppercase">
-                                <Info className="text-primary h-3 w-3" />
-                                Transcription Tips
+                              <h4 className="text-foreground flex items-center gap-2 text-[10px] font-bold tracking-[0.15em] uppercase">
+                                <Info className="text-primary h-3.5 w-3.5" />
+                                Transcription Guide
                               </h4>
-                              <ul className="text-muted-foreground border-border/40 list-inside list-disc space-y-1.5 border-t pt-2 text-[11px]">
-                                <li>Only edit text within the timestamp.</li>
+                              <ul className="text-muted-foreground border-border/40 list-outside list-disc space-y-2 border-t pt-3 ml-4 text-[11px] leading-relaxed">
                                 <li>
-                                  Enable{" "}
-                                  <span className="text-foreground font-medium">
+                                  <span className="text-foreground font-semibold">
+                                    Match audio exactly
+                                  </span>{" "}
+                                  — type everything as heard in the segment.
+                                </li>
+                                <li>
+                                  Use{" "}
+                                  <span className="text-foreground font-semibold">
                                     Loop Mode
                                   </span>{" "}
-                                  to repeat the audio.
+                                  to repeat the audio while you transcribe.
                                 </li>
-                                <li>Just click next if unsure.</li>
+                                <li>
+                                  Click{" "}
+                                  <span className="text-foreground font-semibold">
+                                    Next Random
+                                  </span>{" "}
+                                  if the line is too difficult to understand.
+                                </li>
                               </ul>
                             </TooltipContent>
                           </Tooltip>
@@ -235,18 +251,27 @@ export default function RandomPage() {
                       {speaker}
                     </span>
                   </div>
-                  <Textarea
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    disabled={!isUserLoggedIn || saving || saved || loading}
-                    spellCheck={false}
-                    className={cn(
-                      "bg-card/50 border-border focus:bg-card min-h-35 resize-none rounded-xl p-4 text-base leading-relaxed shadow-inner transition-all",
-                      !isUserLoggedIn &&
-                        "bg-muted/50 cursor-not-allowed border-transparent opacity-80",
+                  <div className="relative">
+                    <Textarea
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      disabled={!isUserLoggedIn || saving || saved || loading}
+                      spellCheck={false}
+                      className={cn(
+                        "bg-card/50 border-border focus:bg-card min-h-35 resize-none rounded-xl p-4 text-base leading-relaxed shadow-inner transition-all",
+                        !isUserLoggedIn &&
+                          "bg-muted/50 cursor-not-allowed border-transparent opacity-80",
+                      )}
+                      placeholder="Line content..."
+                    />
+                    {!isUserLoggedIn && (
+                      <div 
+                        className="absolute inset-0 cursor-pointer" 
+                        onClick={() => setIsLoginModalOpen(true)}
+                        title="Login to suggest correction"
+                      />
                     )}
-                    placeholder="Line content..."
-                  />
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-4">
@@ -254,12 +279,12 @@ export default function RandomPage() {
                     <div className="flex items-center gap-2">
                       {!isUserLoggedIn ? (
                         <div className="text-muted-foreground text-[10px] font-medium">
-                          <Link
-                            href="/login"
-                            className="text-primary hover:underline"
+                          <button
+                            onClick={() => setIsLoginModalOpen(true)}
+                            className="text-primary cursor-pointer hover:underline"
                           >
                             Log in
-                          </Link>{" "}
+                          </button>{" "}
                           to suggest corrections.
                         </div>
                       ) : error ? (
@@ -342,6 +367,10 @@ export default function RandomPage() {
         ) : null}
       </main>
 
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onOpenChange={setIsLoginModalOpen}
+      />
       <Footer />
     </div>
   );
