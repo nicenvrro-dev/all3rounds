@@ -65,16 +65,13 @@ export default function SuggestCorrectionModal({
         <DialogHeader>
           <DialogTitle>Suggest Correction</DialogTitle>
           <DialogDescription>
-            Help improve the transcript. Your suggestion will be reviewed by our
-            team.
+            Help improve the transcript. Your suggestion will be reviewed.
           </DialogDescription>
         </DialogHeader>
 
         {submitted ? (
-          <div className="flex flex-col items-center justify-center space-y-4 py-10 text-center">
-            <div className="rounded-full bg-green-900/30 p-3">
-              <CheckCircle2 className="h-8 w-8 text-green-400" />
-            </div>
+          <div className="flex flex-col items-center justify-center space-y-4 py-4 text-center">
+            <CheckCircle2 className="h-8 w-8 text-green-400" />
             <div className="space-y-1">
               <h3 className="text-foreground font-semibold">
                 Suggestion Submitted
@@ -127,8 +124,8 @@ export default function SuggestCorrectionModal({
               <div className="text-muted-foreground bg-muted/20 flex items-start gap-1.5 rounded border border-dashed p-2 text-[11px]">
                 <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 opacity-60" />
                 <span>
-                  Only suggest changes if you&apos;re sure about the lyrics or
-                  labels. Minor formatting is fine.
+                  Only suggest changes if you&apos;re sure about it. Minor
+                  formatting is fine.
                 </span>
               </div>
             </div>

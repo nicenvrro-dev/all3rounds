@@ -42,7 +42,7 @@ import BatchActionBar from "@/features/battle/components/BatchActionBar";
 import BattleEditModal from "@/features/battle/components/BattleEditModal";
 import BattleAddLineModal from "@/features/battle/components/BattleAddLineModal";
 import SuggestCorrectionModal from "@/components/SuggestCorrectionModal";
-import Footer from "@/components/Footer";
+import { LoginModal } from "@/components/LoginModal";
 import { useAuthStore } from "@/stores/auth-store";
 import type { SearchResult } from "@/lib/types";
 import { LineItem } from "@/features/battle/components/LineItem";
@@ -127,6 +127,7 @@ export default function BattlePage() {
   );
   const [collapsedTurns, setCollapsedTurns] = useState<Set<string>>(new Set());
   const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // -- Active Line --
   const activeLineId = useMemo(() => {
@@ -249,6 +250,17 @@ export default function BattlePage() {
       setDeletingBattle(false);
     }
   };
+
+  const handleSuggestClick = useCallback(
+    (line: BattleLine) => {
+      if (isUserLoggedIn) {
+        setSuggestingLine(line);
+      } else {
+        setIsLoginModalOpen(true);
+      }
+    },
+    [isUserLoggedIn],
+  );
 
   const toggleRoundCollapse = useCallback((roundIndex: number) => {
     setCollapsedRounds((prev) => {
@@ -586,12 +598,12 @@ export default function BattlePage() {
 
       <main className="mx-auto flex h-[calc(100vh-4rem)] max-w-7xl flex-col overflow-hidden px-4 sm:px-6">
         {/* ── Two-Column Layout ── */}
-        <div className="flex h-full min-h-0 flex-col gap-6 pt-4 lg:grid lg:grid-cols-12 lg:gap-8 lg:pt-6">
+        <div className="flex h-full min-h-0 flex-col gap-4 pt-2 lg:grid lg:grid-cols-12 lg:gap-8 lg:pt-6">
           {/* Left Column: Video (Sticky/Docked) */}
           <div className="z-30 lg:col-span-7 xl:col-span-8">
             <button
               onClick={() => router.back()}
-              className="text-muted-foreground/60 hover:text-foreground mb-3 ml-1 inline-flex cursor-pointer items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase transition-colors sm:ml-0 lg:mb-4"
+              className="text-muted-foreground/60 hover:text-foreground mb-2 ml-1 inline-flex cursor-pointer items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase transition-colors sm:ml-0 lg:mb-4"
             >
               <ArrowLeft className="h-3 w-3" />
               Go Back
@@ -676,50 +688,56 @@ export default function BattlePage() {
               </div>
 
               {/* Meta bar */}
-              <div className="border-border flex flex-col items-start gap-4 border-t px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-x-12">
-                <div className="flex flex-col">
-                  <h1 className="text-foreground text-lg font-bold tracking-tight sm:text-xl">
-                    {battle.title}
-                  </h1>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-                    {battle.event_name && (
-                      <span className="text-foreground flex items-center gap-1.5 text-xs font-medium">
-                        {battle.event_name}
-                      </span>
-                    )}
-                    {battle.event_date && (
-                      <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
-                        {formatDate(battle.event_date)}
-                      </span>
-                    )}
-                    <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
-                      {lines.length} lines
-                    </span>
+              <div className="border-border border-t px-4 py-2.5 sm:px-6 sm:py-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-1 flex-col min-w-0">
+                    <h1 className="text-foreground text-[15px] font-bold tracking-tight sm:text-xl truncate" title={battle.title}>
+                      {battle.title}
+                    </h1>
+                    <div className="text-muted-foreground/60 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-medium sm:gap-x-3 sm:text-xs">
+                      {battle.event_name && (
+                        <span className="text-foreground/70 truncate max-w-[120px] sm:max-w-none">
+                          {battle.event_name}
+                        </span>
+                      )}
+                      {battle.event_name && (battle.event_date || lines.length > 0) && (
+                        <span className="opacity-30">•</span>
+                      )}
+                      {battle.event_date && (
+                        <span>{formatDate(battle.event_date)}</span>
+                      )}
+                      {(battle.event_date || battle.event_name) && lines.length > 0 && (
+                        <span className="opacity-30">•</span>
+                      )}
+                      <span>{lines.length} lines</span>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2">
-                  <a
-                    href={battle.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="border-border text-muted-foreground hover:bg-muted hover:text-foreground inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    Watch on YouTube
-                  </a>
-                  {canDelete && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={deletingBattle}
-                      onClick={handleDeleteBattle}
-                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive h-8 w-8 p-0 transition-colors"
-                      title="Delete entire battle"
+                  <div className="flex items-center gap-1.5 shrink-0 pt-0.5 sm:gap-2">
+                    <a
+                      href={battle.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="border-border text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-[10px] font-bold tracking-wider uppercase transition-colors sm:h-8 sm:px-3 sm:text-xs sm:font-medium sm:tracking-normal"
+                      title="Watch on YouTube"
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
+                      <ExternalLink className="h-3 w-3" />
+                      <span className="hidden sm:inline">Watch on YouTube</span>
+                      <span className="sm:hidden">Watch</span>
+                    </a>
+                    {canDelete && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={deletingBattle}
+                        onClick={handleDeleteBattle}
+                        className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive h-7 w-7 p-0 transition-colors sm:h-8 sm:w-8"
+                        title="Delete entire battle"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -732,10 +750,10 @@ export default function BattlePage() {
                 "flex h-full flex-col overflow-hidden transition-colors duration-300",
                 isTranscriptExpanded
                   ? "bg-background animate-in slide-in-from-bottom-full fixed inset-0 z-50 p-4 pt-12 pb-8 duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] sm:p-8"
-                  : "relative pb-4",
+                  : "relative pb-1",
               )}
             >
-              <div className="mb-2 flex items-center justify-between px-1 md:mb-4">
+              <div className="mb-1.5 flex items-center justify-between px-1 md:mb-3">
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-2">
                     <h2 className="text-foreground/70 text-[11px] font-semibold tracking-[0.2em] uppercase">
@@ -859,7 +877,7 @@ export default function BattlePage() {
                           <Button
                             variant="ghost"
                             onClick={() => toggleRoundCollapse(gi)}
-                            className="hover:bg-muted/50 h-auto flex-1 justify-start gap-2 rounded-lg px-2 py-2 text-left transition-colors"
+                            className="hover:bg-muted/50 h-auto flex-1 justify-start gap-2 rounded-lg px-2 py-1.5 text-left transition-colors"
                           >
                             {isRoundCollapsed ? (
                               <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0" />
@@ -909,7 +927,7 @@ export default function BattlePage() {
                               return (
                                 <div key={ti}>
                                   {/* Speaker header (Sticky below Round header) */}
-                                  <div className="bg-background/80 sticky top-9.5 z-10 -ml-1 flex items-center gap-1.5 py-0.5 backdrop-blur-sm">
+                                  <div className="bg-background/80 sticky top-8.5 z-10 -ml-1 flex items-center gap-1.5 py-0.5 backdrop-blur-sm">
                                     <Button
                                       variant="ghost"
                                       onClick={() =>
@@ -943,7 +961,7 @@ export default function BattlePage() {
 
                                   {/* Lines */}
                                   {!isTurnCollapsed && (
-                                    <div className="border-border/20 ml-2 border-l py-0.5 pl-3">
+                                    <div className="border-border/20 ml-2 border-l py-0 pl-3">
                                       {turn.lines.map(
                                         (line: BattleLine, li: number) => {
                                           const prevLine =
@@ -1005,10 +1023,9 @@ export default function BattlePage() {
                                                 onSeek={handleSeek}
                                                 onEditClick={setEditingLine}
                                                 onSuggestClick={
-                                                  setSuggestingLine
+                                                  handleSuggestClick
                                                 }
                                                 onAddClick={handleAddLineAt}
-                                                isLoggedIn={isUserLoggedIn}
                                                 canEdit={canEdit}
                                                 showBeforeInsert={
                                                   gi === 0 &&
@@ -1033,9 +1050,9 @@ export default function BattlePage() {
                 </div>
 
                 {/* Footer */}
-                <div className="border-border mt-12 space-y-4 border-t pt-6 text-center">
-                  <p className="text-muted-foreground/60 text-[10px] tracking-widest uppercase">
-                    {lines.length} lines transcribed • Community edits welcome
+                <div className="border-border mt-4 space-y-2 border-t pt-4 text-center">
+                  <p className="text-muted-foreground/50 text-[9px] tracking-widest uppercase">
+                    {lines.length} lines • Community transcription
                   </p>
                 </div>
 
@@ -1108,7 +1125,10 @@ export default function BattlePage() {
           }}
         />
       )}
-      <Footer />
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onOpenChange={setIsLoginModalOpen}
+      />
     </div>
   );
 }

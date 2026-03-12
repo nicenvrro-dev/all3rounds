@@ -106,26 +106,41 @@ export default async function EmceeProfilePage({
 
 function EmceeProfileSkeleton() {
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-12 md:py-20">
-      <div className="mb-12 space-y-4">
-        <Skeleton className="h-12 w-64 md:h-16" />
-        <div className="flex gap-2">
-          <Skeleton className="h-6 w-20" />
-          <Skeleton className="h-6 w-24" />
+    <div className="min-h-screen bg-[#09090b]">
+      <div className="bg-[#09090b] h-16 border-b border-white/5 animate-pulse" /> {/* Header spacer */}
+      <main className="mx-auto max-w-5xl px-4 py-12 md:py-20">
+        {/* Back Link Skeleton */}
+        <div className="mb-8 flex items-center gap-2">
+          <Skeleton className="h-4 w-4 rounded-full" />
+          <Skeleton className="h-3 w-32" />
         </div>
-      </div>
 
-      <div className="mb-12 grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <Skeleton className="h-32 rounded-3xl" />
-        <Skeleton className="h-32 rounded-3xl" />
-        <Skeleton className="h-32 rounded-3xl" />
-      </div>
+        {/* Heading Skeleton */}
+        <div className="mb-12">
+          <Skeleton className="mb-4 h-12 w-2/3 md:h-16 lg:w-1/2" />
+        </div>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <Skeleton key={i} className="aspect-video rounded-xl" />
-        ))}
-      </div>
+        <Skeleton className="mb-12 h-px w-full bg-white/5" />
+
+        {/* Battle History Header */}
+        <div className="mb-8 flex items-center justify-between">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-10 w-32 rounded-xl" />
+        </div>
+
+        {/* Battles Grid Skeleton */}
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="space-y-4">
+              <Skeleton className="aspect-video w-full rounded-2xl" />
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-full" />
+                <Skeleton className="h-4 w-2/3 opacity-50" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
     </div>
   );
 }
