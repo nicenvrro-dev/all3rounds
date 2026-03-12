@@ -4,6 +4,7 @@ import { SearchResult } from "@/lib/types";
 import EditLineModal from "./EditLineModal";
 import SuggestCorrectionModal from "./SuggestCorrectionModal";
 import { useState } from "react";
+import { LoginModal } from "./LoginModal";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { MessageSquarePlus, SquarePen } from "lucide-react";
@@ -23,6 +24,7 @@ export default function ResultCard({
 }) {
   const [showEdit, setShowEdit] = useState(false);
   const [showSuggest, setShowSuggest] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // ── Logic: Determine Speaker Label ──
   // This intelligently shows the full team for 2v2/3v3 battles,
@@ -141,17 +143,21 @@ export default function ResultCard({
                   <SquarePen className="h-4 w-4" />
                 </Button>
               )}
-              {isUserLoggedIn && !isLoggedIn && (
+              {!isLoggedIn && (
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    setShowSuggest(true);
+                    if (isUserLoggedIn) {
+                      setShowSuggest(true);
+                    } else {
+                      setIsLoginModalOpen(true);
+                    }
                   }}
                   className="text-muted-foreground hover:bg-primary/10 hover:text-primary h-8 w-8"
-                  title="Suggest a correction"
+                  title={isUserLoggedIn ? "Suggest a correction" : "Login to suggest correction"}
                 >
                   <MessageSquarePlus className="h-4 w-4" />
                 </Button>
@@ -222,6 +228,11 @@ export default function ResultCard({
           onClose={() => setShowSuggest(false)}
         />
       )}
+
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onOpenChange={setIsLoginModalOpen}
+      />
     </>
   );
 }

@@ -25,7 +25,6 @@ type LineItemProps = {
   onEditClick: (line: BattleLine) => void;
   onSuggestClick: (line: BattleLine) => void;
   onAddClick: (lineId: number, pos: "before" | "after") => void;
-  isLoggedIn: boolean;
   canEdit: boolean;
   showBeforeInsert?: boolean;
 };
@@ -48,7 +47,6 @@ export const LineItem = memo(
     onEditClick,
     onSuggestClick,
     onAddClick,
-    isLoggedIn,
     canEdit,
     showBeforeInsert,
   }: LineItemProps) => {
@@ -166,7 +164,7 @@ export const LineItem = memo(
               )}
             </div>
             <span className="flex-1">{line.content}</span>
-            {isLoggedIn && !canEdit && (
+            {!canEdit && (
               <Button
                 variant="ghost"
                 size="icon"
