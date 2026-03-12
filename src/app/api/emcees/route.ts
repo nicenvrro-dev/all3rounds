@@ -38,12 +38,12 @@ export async function GET(request: NextRequest) {
   // Now querying the 'emcees' table directly since battle_count is denormalized
   let dbQuery = supabase
     .from("emcees")
-    .select("id, name, battle_count", { count: "exact" });
+    .select("id, name, aka, battle_count", { count: "exact" });
 
   // 1. Filtering by search query 
   if (query) {
     const safeQ = query.replace(/%/g, "\\%").replace(/_/g, "\\_");
-    dbQuery = dbQuery.ilike("name", `%${safeQ}%`);
+    dbQuery = dbQuery.or(`name.ilike.%${safeQ}%,aka.cs.{"${query}"}`);
   }
 
   // 2. Efficient Filtering by Battle Count in SQL

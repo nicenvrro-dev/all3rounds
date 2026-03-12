@@ -139,7 +139,21 @@ export async function POST(request: NextRequest) {
 
     if (targetUpdateError) throw targetUpdateError;
 
-    // 5. Delete Source Emcee
+    // 5. Recalculate and update battle_count for the target emcee
+    // This handles the denormalized column even if the trigger hasn't been updated yet
+    const { count: finalCount, error: countError } = await adminClient
+      .from("battle_participants")
+      .select("id", { count: "exact", head: true })
+      .eq("emcee_id", targetId);
+
+    if (!countError) {
+      await adminClient
+        .from("emcees")
+        .update({ battle_count: finalCount || 0 })
+        .eq("id", targetId);
+    }
+
+    // 6. Delete Source Emcee
     const { error: deleteError } = await adminClient
       .from("emcees")
       .delete()

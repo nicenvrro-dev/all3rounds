@@ -25,6 +25,21 @@ export function EmceeCard({ emcee }: EmceeCardProps) {
             </span>
           </div>
         </div>
+        
+        {emcee.aka && emcee.aka.length > 0 && (
+          <div className="flex flex-wrap gap-x-2 gap-y-1">
+            {emcee.aka.slice(0, 3).map((alias) => (
+              <span key={alias} className="text-[10px] text-white/40 group-hover:text-white/60 transition-colors">
+                • {alias}
+              </span>
+            ))}
+            {emcee.aka.length > 3 && (
+              <span className="text-[10px] text-white/20">
+                +{emcee.aka.length - 3} more
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </Link>
   );
