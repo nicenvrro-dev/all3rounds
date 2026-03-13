@@ -22,7 +22,9 @@ export function LoginModal({ isOpen, onOpenChange }: LoginModalProps) {
     // Use a cookie to store the current path to redirect back after auth
     if (typeof window !== "undefined") {
       const currentPath = window.location.pathname + window.location.search;
-      document.cookie = `auth-redirect=${encodeURIComponent(currentPath)}; path=/; max-age=300; SameSite=Lax`;
+      const secureFlag =
+        window.location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `auth-redirect=${encodeURIComponent(currentPath)}; path=/; max-age=300; SameSite=Lax${secureFlag}`;
     }
 
     await supabase.auth.signInWithOAuth({
@@ -35,7 +37,7 @@ export function LoginModal({ isOpen, onOpenChange }: LoginModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-card overflow-hidden rounded-2xl p-0 backdrop-blur-xl sm:max-w-[400px]">
+      <DialogContent className="bg-card overflow-hidden rounded-2xl p-0 backdrop-blur-xl sm:max-w-100">
         <div className="flex flex-col items-center gap-2 px-6 pt-12 pb-6 text-center">
           <div className="mb-4 flex h-12 w-auto items-center justify-center transition-transform duration-300">
             <Image

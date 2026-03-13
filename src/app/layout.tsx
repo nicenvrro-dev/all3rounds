@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
+import Script from "next/script";
 import { Inter, Montserrat } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import BetaBanner from "@/components/BetaBanner";
 import { AuthProvider } from "@/components/AuthProvider";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
-import { Analytics } from "@vercel/analytics/react";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -33,11 +34,17 @@ export const viewport: Viewport = {
   themeColor: "#facc15",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const analyticsSrc =
+    process.env.NODE_ENV === "production"
+      ? "/_vercel/insights/script.js"
+      : "https://va.vercel-scripts.com/v1/script.debug.js";
+
   return (
     <html
       lang="en"
@@ -52,7 +59,7 @@ export default function RootLayout({
           <ErrorBoundary>{children}</ErrorBoundary>
         </AuthProvider>
         <Toaster />
-        <Analytics />
+        <Script src={analyticsSrc} strategy="afterInteractive" nonce={nonce} />
       </body>
     </html>
   );
