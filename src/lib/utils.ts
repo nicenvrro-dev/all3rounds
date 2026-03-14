@@ -37,12 +37,16 @@ export function formatEventDate(dateStr: string | null): string {
   });
 }
 
-export function formatSpeakerName(name: string | null | undefined): string | null {
+export function formatSpeakerName(
+  name: string | null | undefined,
+  keepUnassigned = false,
+): string | null {
+  if (!name) return null;
   if (
-    !name ||
-    name === "Unknown" ||
-    name.toLowerCase().includes("unassigned") ||
-    name.toLowerCase().startsWith("speaker")
+    !keepUnassigned &&
+    (name === "Unknown" ||
+      name.toLowerCase().includes("unassigned") ||
+      name.toLowerCase().startsWith("speaker"))
   ) {
     return null;
   }

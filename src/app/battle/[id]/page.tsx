@@ -482,9 +482,11 @@ export default function BattlePage() {
         ...new Set(
           lines.map((l) => {
             if (l.emcees && l.emcees.length > 0) {
-              return l.emcees.map((e) => formatSpeakerName(e.name)).join(" / ");
+              return l.emcees
+                .map((e) => formatSpeakerName(e.name, true))
+                .join(" / ");
             }
-            return formatSpeakerName(l.emcee?.name || l.speaker_label);
+            return formatSpeakerName(l.emcee?.name || l.speaker_label, true);
           }),
         ),
       ].filter((s): s is string => s !== null) as string[]
@@ -499,9 +501,11 @@ export default function BattlePage() {
       const round = line.round_number;
       let speaker: string | null = null;
       if (line.emcees && line.emcees.length > 0) {
-        speaker = line.emcees.map((e) => formatSpeakerName(e.name)).join(" / ");
+        speaker = line.emcees
+          .map((e) => formatSpeakerName(e.name, true))
+          .join(" / ");
       } else {
-        speaker = formatSpeakerName(line.emcee?.name || line.speaker_label);
+        speaker = formatSpeakerName(line.emcee?.name || line.speaker_label, true);
       }
 
       if (round !== currentRoundId) {
