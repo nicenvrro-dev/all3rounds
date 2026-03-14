@@ -38,12 +38,18 @@ export function BattlesSkeleton() {
                 {[...Array(4)].map((_, i) => (
                   <div
                     key={i}
-                    className="border-border overflow-hidden rounded-lg border"
+                    className="border-border overflow-hidden rounded-xl border bg-card/50"
                   >
                     <Skeleton className="aspect-video w-full rounded-none" />
-                    <div className="space-y-2 p-3.5">
-                      <Skeleton className="h-4 w-3/4" />
-                      <Skeleton className="h-3 w-1/2" />
+                    <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-[90%]" />
+                        <Skeleton className="h-4 w-[40%]" />
+                      </div>
+                      <div className="flex gap-2">
+                        <Skeleton className="h-8 sm:h-9 flex-1 rounded-lg" />
+                        <Skeleton className="h-8 sm:h-9 flex-1 rounded-lg" />
+                      </div>
                     </div>
                   </div>
                 ))}

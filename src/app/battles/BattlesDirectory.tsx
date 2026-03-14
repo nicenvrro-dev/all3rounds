@@ -229,18 +229,18 @@ export default function BattlesDirectory({
 
             <div className="flex w-full items-center gap-2 sm:gap-3 lg:w-auto">
               <form
-                className="relative flex-1 lg:w-[320px]"
+                className="group relative flex-1 lg:w-[320px]"
                 onSubmit={(e) => {
                   e.preventDefault();
                   updateSearch({ q: searchInput });
                 }}
               >
                 <div className="relative">
-                  <Search className="text-muted-foreground/40 absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
+                  <Search className="text-muted-foreground/40 absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 transition-colors group-focus-within:text-primary/60" />
                   <input
                     type="text"
                     placeholder="Search battles or events..."
-                    className="border-border/50 bg-muted/10 text-foreground placeholder:text-muted-foreground/30 focus:border-primary/40 focus:bg-muted/20 focus:ring-primary/5 h-11 w-full rounded-2xl border pr-24 pl-11 text-sm transition-all outline-none focus:ring-4"
+                    className="border-border/50 bg-muted/5 text-foreground placeholder:text-muted-foreground/30 focus:border-primary/40 focus:bg-muted/10 focus:ring-primary/5 h-11 w-full rounded-2xl border pr-24 pl-11 text-sm transition-all outline-none focus:ring-4"
                     value={searchInput}
                     onChange={handleSearchChange}
                     onBlur={() => {
