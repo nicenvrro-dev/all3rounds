@@ -27,13 +27,14 @@ export default function Footer() {
               <nav className="flex flex-col gap-2">
                 <Link
                   href="/privacy"
-                  className="text-muted-foreground/40 hover:text-foreground text-[11px] transition-colors"
+                  rel="privacy-policy"
+                  className="text-muted-foreground hover:text-foreground text-xs transition-colors"
                 >
                   Privacy Policy
                 </Link>
                 <Link
                   href="/terms"
-                  className="text-muted-foreground/40 hover:text-foreground text-[11px] transition-colors"
+                  className="text-muted-foreground hover:text-foreground text-xs transition-colors"
                 >
                   Terms of Service
                 </Link>
@@ -48,7 +49,7 @@ export default function Footer() {
               <div className="flex flex-col gap-2">
                 <a
                   href="mailto:team@all3rounds.com"
-                  className="text-muted-foreground/40 hover:text-foreground text-[11px] transition-colors"
+                  className="text-muted-foreground hover:text-foreground text-xs transition-colors"
                 >
                   team@all3rounds.com
                 </a>
@@ -56,11 +57,11 @@ export default function Footer() {
                   href="https://github.com/aimndz/battlerap-db"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-muted-foreground/40 hover:text-foreground text-[11px] transition-colors"
+                  className="text-muted-foreground hover:text-foreground text-xs transition-colors"
                 >
                   GitHub
                 </a>
-                <p className="text-muted-foreground/30 text-[10px] font-medium">
+                <p className="text-muted-foreground/50 text-[10px] font-medium">
                   © {new Date().getFullYear()} All3Rounds.
                 </p>
               </div>
