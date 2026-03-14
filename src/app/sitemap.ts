@@ -3,8 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 
 export const revalidate = 3600; // 1 hour
 
-const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://all3rounds.vercel.app";
+import { getSiteUrl } from "@/lib/utils";
+ 
+const siteUrl = getSiteUrl();
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();

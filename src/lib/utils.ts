@@ -48,3 +48,13 @@ export function formatSpeakerName(name: string | null | undefined): string | nul
   }
   return name.replace(/_/g, " ");
 }
+
+export function getSiteUrl() {
+  const raw = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!raw) {
+    return process.env.NODE_ENV === "development"
+      ? "http://localhost:3000"
+      : "https://all3rounds.com";
+  }
+  return raw.startsWith("http") ? raw : `https://${raw}`;
+}

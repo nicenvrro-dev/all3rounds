@@ -1,7 +1,8 @@
 import { MetadataRoute } from "next";
 
-const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://all3rounds.vercel.app";
+import { getSiteUrl } from "@/lib/utils";
+ 
+const siteUrl = getSiteUrl();
 
 export default function robots(): MetadataRoute.Robots {
   return {
