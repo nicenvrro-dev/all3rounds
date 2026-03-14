@@ -10,6 +10,7 @@ function buildCsp(nonce: string, isDev: boolean) {
     "https://www.youtube.com",
     "https://s.ytimg.com",
     "https://va.vercel-scripts.com",
+    "https://www.googletagmanager.com",
   ]
     .filter(Boolean)
     .join(" ");
@@ -23,10 +24,11 @@ function buildCsp(nonce: string, isDev: boolean) {
     `script-src ${scriptSrc}`,
     "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' https://img.youtube.com https://i.ytimg.com data: blob:",
+    "img-src 'self' https://img.youtube.com https://i.ytimg.com data: blob: https://www.google-analytics.com https://www.googletagmanager.com",
     "frame-src https://www.youtube.com",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://vitals.vercel-analytics.com",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://vitals.vercel-analytics.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com",
     "font-src 'self'",
+
     !isDev ? "upgrade-insecure-requests" : "",
   ]
     .filter(Boolean)

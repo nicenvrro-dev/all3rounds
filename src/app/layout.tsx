@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/toaster";
 import BetaBanner from "@/components/BetaBanner";
 import { AuthProvider } from "@/components/AuthProvider";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -89,6 +90,9 @@ export default async function RootLayout({
         </AuthProvider>
         <Toaster />
         <Script src={analyticsSrc} strategy="afterInteractive" nonce={nonce} />
+        {process.env.NEXT_PUBLIC_GA_ID && (
+          <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID} />
+        )}
       </body>
     </html>
   );
