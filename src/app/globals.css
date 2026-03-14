@@ -86,9 +86,11 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    -webkit-tap-highlight-color: transparent;
   }
   body {
     @apply bg-background text-foreground;
+    touch-action: manipulation;
   }
   h1,
   h2,
@@ -97,6 +99,9 @@
   h5,
   h6 {
     @apply font-heading;
+  }
+  a, button {
+    @apply transition-all duration-200;
   }
 }
 

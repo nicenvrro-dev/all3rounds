@@ -84,7 +84,7 @@ export default function ResultCard({
     <>
       <div
         onClick={() => router.push(`/battle/${result.battle.id}?t=${Math.floor(result.start_time)}`)}
-        className="group hover:bg-muted/30 relative block cursor-pointer py-4 transition-colors sm:-mx-4 sm:rounded-xl sm:px-4"
+        className="group hover:bg-muted/30 active:bg-muted/45 relative block cursor-pointer py-4 transition-all duration-200 sm:-mx-4 sm:rounded-xl sm:px-4"
       >
         {/* Action Controls */}
         <div className="absolute top-3 right-0 z-40 flex items-center sm:top-4 sm:right-4">
