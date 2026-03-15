@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 
 # Reuse core logic from transcribe.py
 from transcribe import (
-    supabase,
+    get_db_connection,
     SUPABASE_KEY,
     HF_TOKEN,
     get_yt_dlp_cookies,
@@ -67,44 +67,28 @@ def get_existing_ids() -> set[str]:
     Fetch all youtube_ids that are either:
       1. Already in the 'battles' table (completed)
       2. Currently being processed or marked as completed in 'video_processing_status'
-    Used to skip videos that don't need work.
     """
-    if not supabase:
-        return set()
-
     print(f"[1] Fetching existing work (Worker: {WORKER_ID})...")
     existing_ids = set()
     
-    # ── 1. Fetch from 'battles' table ──
-    page = 0
-    page_size = 1000
-    while True:
-        try:
-            response = (
-                supabase.table("battles")
-                .select("youtube_id")
-                .range(page * page_size, (page + 1) * page_size - 1)
-                .execute()
-            )
-            if not response.data: break
-            for row in response.data:
-                existing_ids.add(row["youtube_id"])
-            page += 1
-        except Exception: break
-
-    # ── 2. Fetch from 'video_processing_status' table ──
-    # Skip videos that are currently 'processing' or 'completed'
     try:
-        response = (
-            supabase.table("video_processing_status")
-            .select("youtube_id, status")
-            .in_("status", ["processing", "completed"])
-            .execute()
-        )
-        for row in response.data:
-            existing_ids.add(row["youtube_id"])
+        conn = get_db_connection()
+        cur  = conn.cursor()
+
+        # 1. Fetch from 'battles' table
+        cur.execute("SELECT youtube_id FROM battles")
+        for row in cur.fetchall():
+            existing_ids.add(row[0])
+
+        # 2. Fetch from 'video_processing_status' table
+        cur.execute("SELECT youtube_id FROM video_processing_status WHERE status IN ('processing', 'completed')")
+        for row in cur.fetchall():
+            existing_ids.add(row[0])
+
+        cur.close()
+        conn.close()
     except Exception as e:
-        print(f"    Warning: Could not fetch processing status: {e}")
+        print(f"    Warning: Could not fetch existing work: {e}")
 
     print(f"    Found {len(existing_ids)} active/completed tasks.")
     return existing_ids
@@ -116,48 +100,62 @@ def claim_video(yt_id: str) -> bool:
     Returns True if claimed successfully, False otherwise.
     """
     try:
-        # Step 1: Check if already in battles (safety double-check)
-        battles_res = supabase.table("battles").select("id").eq("youtube_id", yt_id).execute()
-        if battles_res.data:
+        conn = get_db_connection()
+        cur  = conn.cursor()
+
+        # Step 1: Check if already in battles
+        cur.execute("SELECT id FROM battles WHERE youtube_id = %s", (yt_id,))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
             return False
 
-        # Step 2: Atomic UPSERT with worker_id claim
-        # We use a trick: only allow claim if status is 'failed' or record doesn't exist.
-        # But for simplicity here, we'll try to insert first.
-        data = {
-            "youtube_id": yt_id,
-            "status": "processing",
-            "worker_id": WORKER_ID,
-            "updated_at": "now()"
-        }
+        # Step 2: Atomic update or insert
+        cur.execute("SELECT status FROM video_processing_status WHERE youtube_id = %s", (yt_id,))
+        row = cur.fetchone()
         
-        # Check if it exists first to handle 'failed' retries
-        existing = supabase.table("video_processing_status").select("status").eq("youtube_id", yt_id).execute()
-        
-        if not existing.data:
+        if not row:
             # New task
-            supabase.table("video_processing_status").insert(data).execute()
-            return True
+            cur.execute("""
+                INSERT INTO video_processing_status (youtube_id, status, worker_id, updated_at)
+                VALUES (%s, 'processing', %s, NOW())
+            """, (yt_id, WORKER_ID))
+            claimed = True
         else:
-            status = existing.data[0]["status"]
+            status = row[0]
             if status == "failed":
                 # Retry a failed task
-                supabase.table("video_processing_status").update(data).eq("youtube_id", yt_id).execute()
-                return True
-            return False # Already processing or completed
+                cur.execute("""
+                    UPDATE video_processing_status 
+                    SET status = 'processing', worker_id = %s, updated_at = NOW()
+                    WHERE youtube_id = %s
+                """, (WORKER_ID, yt_id))
+                claimed = True
+            else:
+                claimed = False
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        return claimed
             
     except Exception as e:
-        # print(f"    DEBUG: Claim failed for {yt_id}: {e}")
         return False
 
 
 def mark_completed(yt_id: str):
     """Mark a video as completed in the locking table."""
     try:
-        supabase.table("video_processing_status").update({
-            "status": "completed",
-            "updated_at": "now()"
-        }).eq("youtube_id", yt_id).execute()
+        conn = get_db_connection()
+        cur  = conn.cursor()
+        cur.execute("""
+            UPDATE video_processing_status 
+            SET status = 'completed', updated_at = NOW()
+            WHERE youtube_id = %s
+        """, (yt_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
     except Exception as e:
         print(f"    Warning: Could not mark {yt_id} as completed: {e}")
 
@@ -165,10 +163,16 @@ def mark_completed(yt_id: str):
 def mark_failed(yt_id: str):
     """Mark a video as failed in the locking table."""
     try:
-        supabase.table("video_processing_status").update({
-            "status": "failed",
-            "updated_at": "now()"
-        }).eq("youtube_id", yt_id).execute()
+        conn = get_db_connection()
+        cur  = conn.cursor()
+        cur.execute("""
+            UPDATE video_processing_status 
+            SET status = 'failed', updated_at = NOW()
+            WHERE youtube_id = %s
+        """, (yt_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
     except Exception as e:
         print(f"    Warning: Could not mark {yt_id} as failed: {e}")
 
@@ -176,26 +180,26 @@ def mark_failed(yt_id: str):
 def cleanup_stale_locks():
     """
     Reset locks for tasks that have been in 'processing' status for too long (e.g., 4 hours).
-    This handles cases where a Colab instance crashed or was disconnected.
     """
-    stale_threshold = (datetime.now() - timedelta(hours=4)).isoformat()
+    stale_threshold = datetime.now() - timedelta(hours=4)
     try:
         print("[0] Cleaning up stale locks (older than 4 hours)...")
-        # Find stale records
-        res = (
-            supabase.table("video_processing_status")
-            .select("youtube_id")
-            .eq("status", "processing")
-            .lt("updated_at", stale_threshold)
-            .execute()
-        )
-        if res.data:
-            ids = [r["youtube_id"] for r in res.data]
-            print(f"    Found {len(ids)} stale tasks. Resetting to 'failed'...")
-            supabase.table("video_processing_status").update({
-                "status": "failed",
-                "updated_at": "now()"
-            }).in_("youtube_id", ids).execute()
+        conn = get_db_connection()
+        cur  = conn.cursor()
+        
+        cur.execute("""
+            UPDATE video_processing_status 
+            SET status = 'failed', updated_at = NOW()
+            WHERE status = 'processing' AND updated_at < %s
+        """, (stale_threshold,))
+        
+        count = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        if count > 0:
+            print(f"    Reset {count} stale tasks to 'failed'.")
     except Exception as e:
         print(f"    Warning: Stale lock cleanup failed: {e}")
 

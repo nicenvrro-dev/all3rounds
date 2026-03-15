@@ -31,6 +31,8 @@ import re
 import subprocess
 import tempfile
 import warnings
+import psycopg2
+import psycopg2.extras
 from datetime import datetime
 
 # Suppress noisy warnings from torchaudio, speechbrain, and torchcodec
@@ -61,15 +63,17 @@ torch.load = _patched_torch_load
 
 import whisperx
 from dotenv import load_dotenv
-from supabase import create_client, Client
 
 load_dotenv()
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
+DATABASE_URL = os.environ["DATABASE_URL"]
 HF_TOKEN     = os.environ["HF_TOKEN"]
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+def get_db_connection():
+    """Create a direct connection to the Supabase pooler (Port 6543)."""
+    return psycopg2.connect(DATABASE_URL, sslmode="require")
 
 
 # ============================================================================
@@ -387,65 +391,89 @@ def upload_to_supabase(
 ):
     """
     Insert a battle record, its transcript lines, and linked emcees into Supabase.
-    Uses upsert on youtube_id to support idempotent re-runs.
+    Uses direct PostgreSQL connection to the pooler for high performance.
     """
-    print(f"\nUploading {len(segments)} lines to Supabase...")
+    print(f"\nUploading {len(segments)} lines to Supabase via Pooler...")
 
-    # Upsert battle record
-    battle_data = {
-        "youtube_id": youtube_id,
-        "title":      title,
-        "event_name": event_name,
-        "event_date": event_date,
-    }
-    battle_res = (
-        supabase.table("battles")
-        .upsert(battle_data, on_conflict="youtube_id")
-        .execute()
-    )
-    battle_id = battle_res.data[0]["id"]
+    try:
+        conn = get_db_connection()
+        cur  = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-    # Build and insert transcript lines
-    lines = [
-        {
-            "battle_id":     battle_id,
-            "speaker_label": seg.get("speaker", "UNKNOWN"),
-            "content":       seg.get("text", "").strip(),
-            "start_time":    round(seg.get("start", 0), 2),
-            "end_time":      round(seg.get("end", 0), 2),
-        }
-        for seg in segments
-        if seg.get("text", "").strip()
-    ]
-    if lines:
-        supabase.table("lines").insert(lines).execute()
+        # 1. Upsert battle record and get ID
+        cur.execute("""
+            INSERT INTO battles (youtube_id, title, event_name, event_date)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (youtube_id) 
+            DO UPDATE SET 
+                title = EXCLUDED.title,
+                event_name = EXCLUDED.event_name,
+                event_date = EXCLUDED.event_date
+            RETURNING id
+        """, (youtube_id, title, event_name, event_date))
+        
+        battle_id = cur.fetchone()[0]
 
-    # Batch upsert emcees and link to battle (1 round-trip instead of N)
-    if participants:
-        print(f"  Creating/linking {len(participants)} emcees...")
-        emcee_res = (
-            supabase.table("emcees")
-            .upsert([{"name": n} for n in participants], on_conflict="name")
-            .execute()
-        )
-        participant_rows = [
-            {"battle_id": battle_id, "emcee_id": e["id"]}
-            for e in emcee_res.data
+        # 2. Build and insert transcript lines in bulk
+        lines_to_insert = [
+            (
+                battle_id,
+                seg.get("speaker", "UNKNOWN"),
+                seg.get("text", "").strip(),
+                round(seg.get("start", 0), 2),
+                round(seg.get("end", 0), 2)
+            )
+            for seg in segments
+            if seg.get("text", "").strip()
         ]
-        if participant_rows:
-            supabase.table("battle_participants").upsert(
-                participant_rows, on_conflict="battle_id,emcee_id"
-            ).execute()
 
-    # Summary
-    speakers = set(l["speaker_label"] for l in lines)
-    print(f"✓ Uploaded {len(lines)} lines for battle: {title}")
-    print(f"  Battle ID: {battle_id}")
-    if battle_format:
-        print(f"  Format:    {battle_format}")
-    if participants:
-        print(f"  Emcees:    {', '.join(participants)}")
-    print(f"  Speakers:  {', '.join(speakers)}")
+        if lines_to_insert:
+            # Delete old lines if re-running (optional, but ensures clean state)
+            cur.execute("DELETE FROM lines WHERE battle_id = %s", (battle_id,))
+            
+            psycopg2.extras.execute_values(
+                cur,
+                "INSERT INTO lines (battle_id, speaker_label, content, start_time, end_time) VALUES %s",
+                lines_to_insert
+            )
+
+        # 3. Handle Emcees and Participants
+        if participants:
+            print(f"  Creating/linking {len(participants)} emcees...")
+            
+            # Batch upsert emcees
+            emcee_ids = []
+            for name in participants:
+                cur.execute("""
+                    INSERT INTO emcees (name) VALUES (%s)
+                    ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+                    RETURNING id
+                """, (name,))
+                emcee_ids.append(cur.fetchone()[0])
+
+            # Link emcees to battle
+            participant_rows = [(battle_id, eid) for eid in emcee_ids]
+            if participant_rows:
+                psycopg2.extras.execute_values(
+                    cur,
+                    "INSERT INTO battle_participants (battle_id, emcee_id) VALUES %s ON CONFLICT DO NOTHING",
+                    participant_rows
+                )
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        # Summary
+        speaker_labels = set(seg.get("speaker", "UNKNOWN") for seg in segments if seg.get("text", "").strip())
+        print(f"✓ Uploaded {len(lines_to_insert)} lines for battle: {title}")
+        print(f"  Battle ID: {battle_id}")
+        if participants:
+            print(f"  Emcees:    {', '.join(participants)}")
+        print(f"  Speakers:  {', '.join(speaker_labels)}")
+
+    except Exception as e:
+        print(f"  ❌ Upload failed: {e}")
+        raise
     print("\n  NOTE: Map speaker labels → emcee names in the admin panel.")
 
 
@@ -508,8 +536,14 @@ def main():
 
     # --- Check for Excluded Status ---
     # If the video is already in the DB as 'excluded', skip immediately.
-    existing_battle = supabase.table("battles").select("status").eq("youtube_id", youtube_id).execute()
-    if existing_battle.data and existing_battle.data[0].get("status") == "excluded":
+    conn = get_db_connection()
+    cur  = conn.cursor()
+    cur.execute("SELECT status FROM battles WHERE youtube_id = %s", (youtube_id,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    
+    if row and row[0] == "excluded":
         print(f"\n[SKIP] Video {youtube_id} is marked as 'excluded' (not a battle). Skipping pipeline.")
         return
 
