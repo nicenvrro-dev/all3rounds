@@ -10,6 +10,7 @@ import {
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -1142,6 +1143,7 @@ export default function BattlePage() {
         isOpen={isLoginModalOpen}
         onOpenChange={setIsLoginModalOpen}
       />
+      <Footer />
     </div>
   );
 }

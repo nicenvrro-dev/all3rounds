@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import Link from "next/link";
 import Image from "next/image";
+import Footer from "@/components/Footer";
 
 export default function LoginPage() {
   const handleLogin = async () => {
@@ -126,10 +127,7 @@ export default function LoginPage() {
         </CardContent>
       </Card>
 
-      {/* Footer hint */}
-      <p className="text-muted-foreground mt-8 text-center text-xs font-medium tracking-tight opacity-50">
-        &copy; {new Date().getFullYear()} ALL3ROUNDS
-      </p>
+      <Footer />
     </div>
   );
 }

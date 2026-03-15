@@ -1,6 +1,7 @@
 "use client";
 
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/admin/PageHeader";
@@ -117,6 +118,7 @@ export default function ReviewsPage() {
           </div>
         )}
       </main>
+      <Footer />
     </div>
   );
 }
