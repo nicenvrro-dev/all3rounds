@@ -59,7 +59,7 @@ function SearchResults() {
       setLoading(true);
       setError("");
 
-      const MAX_RETRIES = 2;
+      const MAX_RETRIES = 0; // Disabled during spike to prevent retry storms
       let attempt = 0;
 
       const performFetch = async (): Promise<void> => {

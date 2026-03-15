@@ -21,7 +21,10 @@ export async function GET(request: NextRequest) {
       { error: "Too many requests. Please wait a moment." },
       {
         status: 429,
-        headers: getRateLimitHeaders(rateRes),
+        headers: {
+          ...getRateLimitHeaders(rateRes),
+          "Retry-After": "60",
+        },
       },
     );
   }
@@ -149,11 +152,11 @@ export async function GET(request: NextRequest) {
     };
 
     // --- Cache Save ---
-    await setCached(cacheKey, payload, 300);
+    await setCached(cacheKey, payload, 3600);
 
     return NextResponse.json(payload, {
       headers: {
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=59",
+        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=59",
       },
     });
   } catch (error) {

@@ -26,7 +26,11 @@ export async function GET(
   const cacheKey = `battle:${id}`;
   const cachedData = await getCached(cacheKey);
   if (cachedData) {
-    return NextResponse.json(cachedData);
+    return NextResponse.json(cachedData, {
+      headers: {
+        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=59",
+      },
+    });
   }
 
   const supabase = await createClient();
@@ -147,9 +151,13 @@ export async function GET(
     lines: transformedLines,
   };
 
-  await setCached(cacheKey, result, 300); // Cache for 5 minutes
+  await setCached(cacheKey, result, 3600); // Cache for 1 hour
 
-  return NextResponse.json(result);
+  return NextResponse.json(result, {
+    headers: {
+      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=59",
+    },
+  });
 }
 
 export async function PATCH(

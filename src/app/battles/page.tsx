@@ -7,7 +7,7 @@ import { BattlesSkeleton } from "@/components/PageSkeletons";
 // Page Export (Server Component)
 // ============================================================================
 
-export const revalidate = 300; // 5 minutes
+export const revalidate = 3600; // 1 hour cache during spike
 
 export default async function BattlesPage() {
   const supabase = await createClient();

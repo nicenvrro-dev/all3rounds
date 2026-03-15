@@ -74,5 +74,12 @@ export async function GET() {
     },
   };
 
-  return NextResponse.json({ line });
+  return NextResponse.json(
+    { line },
+    {
+      headers: {
+        "Cache-Control": "public, s-maxage=10, stale-while-revalidate=5",
+      },
+    },
+  );
 }

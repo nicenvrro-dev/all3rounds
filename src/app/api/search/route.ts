@@ -74,7 +74,10 @@ export async function GET(request: NextRequest) {
         { error: "Too many requests. Please wait a moment and try again." },
         {
           status: 429,
-          headers: getRateLimitHeaders(rateRes),
+          headers: {
+            ...getRateLimitHeaders(rateRes),
+            "Retry-After": "60",
+          },
         },
       );
     }
@@ -84,11 +87,15 @@ export async function GET(request: NextRequest) {
   const cacheKey = `search:v2:${query}:${page}`;
   const cachedData = await getCached(cacheKey);
   if (cachedData) {
-    return NextResponse.json(cachedData);
+    return NextResponse.json(cachedData, {
+      headers: {
+        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=59",
+      },
+    });
   }
 
   // --- Hybrid Search with retry on timeout ---
-  const MAX_RETRIES = 2;
+  const MAX_RETRIES = 0; // DISABLED for production stability. Retries multiply load.
   let data: SearchRpcRow[] | null = null;
   let error: { code?: string; message?: string } | null = null;
   let count: number | null = null;
@@ -104,13 +111,16 @@ export async function GET(request: NextRequest) {
 
     if (!error) break;
 
-    // Only retry on statement timeout (PostgreSQL error 57014)
+    // Only retry on statement timeout (PostgreSQL error 57014) 
     const isTimeout = error.code === "57014";
-    if (isTimeout && attempt < MAX_RETRIES) {
-      console.warn(
-        `Search timeout for "${query}" (attempt ${attempt + 1}), retrying...`,
+    if (isTimeout) {
+      console.warn(`Search timeout for "${query}" (attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
+      if (attempt < MAX_RETRIES) continue;
+      
+      return NextResponse.json(
+        { error: "The database is currently under heavy load. Please try again in a few seconds." },
+        { status: 503, headers: { "Retry-After": "5" } }
       );
-      continue;
     }
 
     console.error("Search RPC error:", error);
@@ -285,6 +295,10 @@ export async function GET(request: NextRequest) {
     totalPages: Math.ceil((count || 0) / limit),
   };
 
-  await setCached(cacheKey, result, 120);
-  return NextResponse.json(result);
+  await setCached(cacheKey, result, 3600); // 1 hour Redis cache
+  return NextResponse.json(result, {
+    headers: {
+      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=59",
+    },
+  });
 }
