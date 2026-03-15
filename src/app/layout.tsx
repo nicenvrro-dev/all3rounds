@@ -42,10 +42,11 @@ export const metadata: Metadata = {
     locale: "en_PH",
     images: [
       {
-        url: "/og-image.png",
+        url: `${siteUrl}/og-image.png`,
         width: 1200,
         height: 630,
         alt: "All3Rounds — Filipino Battle Rap Archive",
+        type: "image/png",
       },
     ],
   },
@@ -54,8 +55,9 @@ export const metadata: Metadata = {
     title: "All3Rounds — Filipino Battle Rap Archive",
     description:
       "Search any FlipTop battle line. Find out who said it, which battle, and watch it instantly.",
-    images: ["/og-image.png"],
+    images: [`${siteUrl}/og-image.png`],
     creator: "@all3rounds",
+    site: "@all3rounds",
   },
 };
 
