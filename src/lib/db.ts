@@ -14,11 +14,13 @@ interface GlobalWithPool {
 const globalWithPool = global as unknown as GlobalWithPool;
 
 // Singleton pattern configuration
+// Supabase free tier has ~60 Supavisor pooler slots total.
+// Each Vercel serverless instance gets its own pool, so keep max LOW.
 const poolConfig = {
   connectionString,
-  max: process.env.NODE_ENV === "production" ? 30 : 20, // Increased for Vercel/Next parallel requests
-  idleTimeoutMillis: 10000, // Recycle idle connections faster
-  connectionTimeoutMillis: 10000,
+  max: process.env.NODE_ENV === "production" ? 5 : 3,
+  idleTimeoutMillis: 10000,
+  connectionTimeoutMillis: 5000, // Fail fast, don't hang for 16s
   ssl: {
     rejectUnauthorized: false,
   },

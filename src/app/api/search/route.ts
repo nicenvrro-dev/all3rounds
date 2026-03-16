@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     // Profiling check via Pooler instead of REST
     const profileRes = await db.query(
       "SELECT role FROM user_profiles WHERE id = $1 LIMIT 1",
-      [user.id]
+      [user.id],
     );
     isSuperadmin = profileRes.rows[0]?.role === "superadmin";
   }
@@ -101,50 +101,17 @@ export async function GET(request: NextRequest) {
 
   const startTime = Date.now();
   try {
-    // 1. PERFORMANCE STRATEGY
-    // If it's a phrase (has spaces), use Full-Text Search (vector) only.
-    // Trigram (%) is extremely slow on multi-word phrases.
-    const isPhrase = query.includes(" ");
-    
-    let searchRes;
-    if (isPhrase) {
-      // ULTRA FAST PATH: Minimal query for phrases
-      searchRes = await db.query<SearchRpcRow & { full_count: string }>(
-        `SELECT 
-          l.id, l.content, l.start_time, l.end_time, l.round_number, l.speaker_label,
-          l.emcee_id, l.speaker_ids, l.battle_id,
-          ts_rank_cd(l.search_vector, websearch_to_tsquery('simple', $1))::FLOAT4 as rank,
-          count(*) OVER() AS full_count
-         FROM lines l
-         WHERE l.search_vector @@ websearch_to_tsquery('simple', $1)
-         ORDER BY rank DESC
-         OFFSET $2 LIMIT $3`,
-        [query, offset, limit],
-      );
-      
-      // We manually add the missing battle/emcee fields to avoid the heavy join in the main query
-      // The rest of the API logic already fetches Emcees/Participants in batch (Line 192+)
-      data = searchRes.rows.map(row => ({
-        ...row,
-        battle_id: row.battle_id as string,
-        battle_title: "", // Will be filled by batch fetch
-        battle_youtube_id: "",
-        battle_status: "published",
-        rank: row.rank || 0,
-        id: Number(row.id)
-      })) as SearchRpcRow[];
-    } else {
-      // TYPO PATH: Single word
-      searchRes = await db.query<SearchRpcRow & { full_count: string }>(
-        `SELECT *, count(*) OVER() AS full_count FROM search_all_hybrid($1) OFFSET $2 LIMIT $3`,
-        [query, offset, limit],
-      );
-      data = searchRes.rows.map((row) => ({
-        ...row,
-        id: Number(row.id),
-      }));
-    }
+    // Use search_fast for ALL queries (FTS-only on content, trigram only on small tables)
+    // This eliminates the 10-second trigram scans that were killing Supavisor.
+    const searchRes = await db.query<SearchRpcRow & { full_count: string }>(
+      `SELECT *, count(*) OVER() AS full_count FROM search_fast($1) OFFSET $2 LIMIT $3`,
+      [query, offset, limit],
+    );
 
+    data = searchRes.rows.map((row) => ({
+      ...row,
+      id: Number(row.id),
+    }));
 
     if (data.length > 0) {
       count = parseInt(searchRes.rows[0].full_count, 10);
@@ -152,7 +119,7 @@ export async function GET(request: NextRequest) {
       count = 0;
     } else {
       const countRes = await db.query<{ count: string }>(
-        `SELECT count(*) FROM search_all_hybrid($1)`,
+        `SELECT count(*) FROM search_fast($1)`,
         [query],
       );
       count = parseInt(countRes.rows[0].count, 10);
@@ -160,14 +127,16 @@ export async function GET(request: NextRequest) {
   } catch (err: unknown) {
     const error = err as { code?: string; message?: string };
     const duration = Date.now() - startTime;
-    
+
     // Log pool status for debugging
     const pool = db.pool;
     const poolStatus = `[POOL] Total: ${pool.totalCount}, Idle: ${pool.idleCount}, Waiting: ${pool.waitingCount}`;
-    
+
     // Check for statement timeout (57014) - Postgres level
     if (error.code === "57014") {
-      console.warn(`Search STATEMENT timeout (${duration}ms) for "${query}". ${poolStatus}`);
+      console.warn(
+        `Search STATEMENT timeout (${duration}ms) for "${query}". ${poolStatus}`,
+      );
       return NextResponse.json(
         { error: "The database is busy. Please try again in a few seconds." },
         { status: 503, headers: { "Retry-After": "5" } },
@@ -176,7 +145,9 @@ export async function GET(request: NextRequest) {
 
     // Check for connection timeout - Pooler level
     if (error.message?.includes("timeout exceeded when trying to connect")) {
-      console.error(`Search CONNECTION timeout after ${duration}ms for "${query}". ${poolStatus}`);
+      console.error(
+        `Search CONNECTION timeout after ${duration}ms for "${query}". ${poolStatus}`,
+      );
       return NextResponse.json(
         { error: "Too many people searching. Please try again." },
         { status: 503, headers: { "Retry-After": "5" } },
@@ -221,31 +192,32 @@ export async function GET(request: NextRequest) {
     emcees: [] as { id: string; name: string }[],
   }));
 
-    // ── Batch Fetch Remaining Data (Emcees, Participants, Context) ──
-    try {
-      if (formattedData && formattedData.length > 0) {
-        const uniqueEmceeIds = new Set<string>();
-        formattedData.forEach((row) => {
-          row.speaker_ids?.forEach((id) => uniqueEmceeIds.add(id));
-          if (row.emcee?.id) uniqueEmceeIds.add(row.emcee.id);
-        });
+  // ── Batch Fetch Remaining Data (Emcees, Participants, Context) ──
+  try {
+    if (formattedData && formattedData.length > 0) {
+      const uniqueEmceeIds = new Set<string>();
+      formattedData.forEach((row) => {
+        row.speaker_ids?.forEach((id) => uniqueEmceeIds.add(id));
+        if (row.emcee?.id) uniqueEmceeIds.add(row.emcee.id);
+      });
 
-        const uniqueBattleIds = Array.from(
-          new Set(formattedData.map((row) => row.battle.id)),
-        );
+      const uniqueBattleIds = Array.from(
+        new Set(formattedData.map((row) => row.battle.id)),
+      );
 
-        const contextLineIds = new Set<number>();
-        formattedData.forEach((row) => {
-          contextLineIds.add(row.id - 1);
-          contextLineIds.add(row.id + 1);
-        });
-        const queryIds = Array.from(contextLineIds);
+      const contextLineIds = new Set<number>();
+      formattedData.forEach((row) => {
+        contextLineIds.add(row.id - 1);
+        contextLineIds.add(row.id + 1);
+      });
+      const queryIds = Array.from(contextLineIds);
 
-        const [emceesResult, participantsResult, contextResult, battlesResult] = await Promise.all([
+      const [emceesResult, participantsResult, contextResult] =
+        await Promise.all([
           uniqueEmceeIds.size > 0
             ? db.query<{ id: string; name: string }>(
                 "SELECT id, name FROM emcees WHERE id = ANY($1)",
-                [Array.from(uniqueEmceeIds)]
+                [Array.from(uniqueEmceeIds)],
               )
             : Promise.resolve({ rows: [] as { id: string; name: string }[] }),
 
@@ -260,9 +232,16 @@ export async function GET(request: NextRequest) {
                  FROM battle_participants bp
                  LEFT JOIN emcees e ON bp.emcee_id = e.id
                  WHERE bp.battle_id = ANY($1)`,
-                [uniqueBattleIds]
+                [uniqueBattleIds],
               )
-            : Promise.resolve({ rows: [] as { battle_id: string; label: string; emcee_id: string | null; emcee_name: string | null }[] }),
+            : Promise.resolve({
+                rows: [] as {
+                  battle_id: string;
+                  label: string;
+                  emcee_id: string | null;
+                  emcee_name: string | null;
+                }[],
+              }),
 
           queryIds.length > 0
             ? db.query<{
@@ -273,113 +252,89 @@ export async function GET(request: NextRequest) {
                 round_number: number | null;
               }>(
                 "SELECT id, content, battle_id, speaker_label, round_number FROM lines WHERE id = ANY($1)",
-                [queryIds]
+                [queryIds],
               )
-            : Promise.resolve({ rows: [] as { id: number | string; content: string; battle_id: string; speaker_label: string | null; round_number: number | null }[] }),
-
-          uniqueBattleIds.length > 0
-            ? db.query<{
-                id: string;
-                title: string;
-                youtube_id: string;
-                event_name: string | null;
-                event_date: string | null;
-                status: string;
-              }>(
-                "SELECT id, title, youtube_id, event_name, event_date, status FROM battles WHERE id = ANY($1)",
-                [uniqueBattleIds]
-              )
-            : Promise.resolve({ rows: [] as { id: string; title: string; youtube_id: string; event_name: string | null; event_date: string | null; status: string }[] }),
+            : Promise.resolve({
+                rows: [] as {
+                  id: number | string;
+                  content: string;
+                  battle_id: string;
+                  speaker_label: string | null;
+                  round_number: number | null;
+                }[],
+              }),
         ]);
 
-    if (emceesResult.rows.length > 0) {
-      const emceeMap = new Map(emceesResult.rows.map((e) => [e.id, e]));
-      formattedData.forEach((row) => {
-        // Fill in primary emcee name if missing
-        if (row.emcee && row.emcee.name === "Unknown") {
-          const e = emceeMap.get(row.emcee.id);
-          if (e) row.emcee.name = e.name;
-        }
-
-        const resolved: { id: string; name: string }[] = [];
-        row.speaker_ids?.forEach((id) => {
-          const e = emceeMap.get(id);
-          if (e) resolved.push(e);
-        });
-        if (resolved.length === 0 && row.emcee) {
-          resolved.push(row.emcee);
-        }
-        row.emcees = resolved;
-      });
-    }
-
-    if (battlesResult.rows.length > 0) {
-      const battleMap = new Map(battlesResult.rows.map((b) => [b.id, b]));
-      formattedData.forEach((row) => {
-        const b = battleMap.get(row.battle.id);
-        if (b) {
-          row.battle.title = b.title;
-          row.battle.youtube_id = b.youtube_id;
-          row.battle.event_name = b.event_name;
-          if (b.event_date) {
-            const d = new Date(b.event_date);
-            row.battle.event_date = isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
-          } else {
-            row.battle.event_date = null;
+      if (emceesResult.rows.length > 0) {
+        const emceeMap = new Map(emceesResult.rows.map((e) => [e.id, e]));
+        formattedData.forEach((row) => {
+          // Fill in primary emcee name if missing
+          if (row.emcee && row.emcee.name === "Unknown") {
+            const e = emceeMap.get(row.emcee.id);
+            if (e) row.emcee.name = e.name;
           }
-          row.battle.status = b.status;
-          row.battle.url = `https://www.youtube.com/watch?v=${b.youtube_id}`;
-        }
-      });
-    }
 
-    if (participantsResult.rows.length > 0) {
-      const participantMap = new Map<
-        string,
-        { label: string; emcee: { id: string; name: string } | null }[]
-      >();
-      participantsResult.rows.forEach((p) => {
-        if (!participantMap.has(p.battle_id))
-          participantMap.set(p.battle_id, []);
-        participantMap.get(p.battle_id)?.push({
-          label: p.label,
-          emcee: p.emcee_id ? { id: p.emcee_id, name: p.emcee_name || "Unknown" } : null,
+          const resolved: { id: string; name: string }[] = [];
+          row.speaker_ids?.forEach((id) => {
+            const e = emceeMap.get(id);
+            if (e) resolved.push(e);
+          });
+          if (resolved.length === 0 && row.emcee) {
+            resolved.push(row.emcee);
+          }
+          row.emcees = resolved;
         });
-      });
-      formattedData.forEach((row) => {
-        row.battle.participants = participantMap.get(row.battle.id) || [];
-      });
-    }
+      }
 
-    if (contextResult.rows.length > 0) {
-      const contextMap = new Map(
-        contextResult.rows.map((line) => [Number(line.id), line]),
-      );
-      formattedData.forEach((row) => {
-        const prev = contextMap.get(row.id - 1);
-        if (prev && prev.battle_id === row.battle.id) {
-          row.prev_line = {
-            id: Number(prev.id),
-            content: prev.content,
-            speaker_label: prev.speaker_label,
-            round_number: prev.round_number,
-          };
-        }
-        const next = contextMap.get(row.id + 1);
-        if (next && next.battle_id === row.battle.id) {
-          row.next_line = {
-            id: Number(next.id),
-            content: next.content,
-            speaker_label: next.speaker_label,
-            round_number: next.round_number,
-          };
-        }
-      });
+      if (participantsResult.rows.length > 0) {
+        const participantMap = new Map<
+          string,
+          { label: string; emcee: { id: string; name: string } | null }[]
+        >();
+        participantsResult.rows.forEach((p) => {
+          if (!participantMap.has(p.battle_id))
+            participantMap.set(p.battle_id, []);
+          participantMap.get(p.battle_id)?.push({
+            label: p.label,
+            emcee: p.emcee_id
+              ? { id: p.emcee_id, name: p.emcee_name || "Unknown" }
+              : null,
+          });
+        });
+        formattedData.forEach((row) => {
+          row.battle.participants = participantMap.get(row.battle.id) || [];
+        });
+      }
+
+      if (contextResult.rows.length > 0) {
+        const contextMap = new Map(
+          contextResult.rows.map((line) => [Number(line.id), line]),
+        );
+        formattedData.forEach((row) => {
+          const prev = contextMap.get(row.id - 1);
+          if (prev && prev.battle_id === row.battle.id) {
+            row.prev_line = {
+              id: Number(prev.id),
+              content: prev.content,
+              speaker_label: prev.speaker_label,
+              round_number: prev.round_number,
+            };
+          }
+          const next = contextMap.get(row.id + 1);
+          if (next && next.battle_id === row.battle.id) {
+            row.next_line = {
+              id: Number(next.id),
+              content: next.content,
+              speaker_label: next.speaker_label,
+              round_number: next.round_number,
+            };
+          }
+        });
+      }
     }
+  } catch (subError) {
+    console.error("[SEARCH] Secondary fetch failed:", subError);
   }
-} catch (subError) {
-  console.error("[SEARCH] Secondary fetch failed:", subError);
-}
 
   const result = {
     results: formattedData || [],
