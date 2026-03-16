@@ -6,9 +6,6 @@ if (!connectionString) {
   throw new Error("DATABASE_URL is not set in environment variables.");
 }
 
-// Singleton pool instance
-let pool: Pool;
-
 // Define a type for the global object to avoid 'any'
 interface GlobalWithPool {
   pool?: Pool;
@@ -16,36 +13,37 @@ interface GlobalWithPool {
 
 const globalWithPool = global as unknown as GlobalWithPool;
 
-if (process.env.NODE_ENV === "production") {
-  pool = new Pool({
-    connectionString,
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
-    ssl: {
-      rejectUnauthorized: false, // Required for Supabase in many environments
-    },
+// Singleton pattern configuration
+const poolConfig = {
+  connectionString,
+  max: process.env.NODE_ENV === "production" ? 30 : 20, // Increased for Vercel/Next parallel requests
+  idleTimeoutMillis: 10000, // Recycle idle connections faster
+  connectionTimeoutMillis: 10000,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+};
+
+if (!globalWithPool.pool) {
+  // Use warn to satisfy linting while still logging critical initialization
+  console.warn(`[DB] Creating new pool (max: ${poolConfig.max})`);
+  globalWithPool.pool = new Pool(poolConfig);
+  
+  globalWithPool.pool.on('error', (err) => {
+    console.error('[DB] Unexpected error on idle client', err);
   });
-} else {
-  // In development, use a global variable to preserve the pool across HMR
-  if (!globalWithPool.pool) {
-    globalWithPool.pool = new Pool({
-      connectionString,
-      max: 5,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
-      ssl: {
-        rejectUnauthorized: false,
-      },
-    });
-  }
-  pool = globalWithPool.pool;
+
+  globalWithPool.pool.on('connect', () => {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn('[DB] New client connected to pool');
+    }
+  });
 }
 
 export const db = {
   query: <T extends QueryResultRow = QueryResultRow>(
     text: string,
     params?: (string | number | boolean | null | string[] | number[])[]
-  ) => pool.query<T>(text, params),
-  pool,
+  ) => globalWithPool.pool!.query<T>(text, params),
+  pool: globalWithPool.pool!,
 };
