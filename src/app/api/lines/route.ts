@@ -112,6 +112,8 @@ export async function POST(request: NextRequest) {
   }
 
 
+  await invalidateCache(`battle:${battle_id}`);
+
   return NextResponse.json({ success: true, line: data });
 }
 

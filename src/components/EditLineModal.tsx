@@ -55,21 +55,27 @@ export default function EditLineModal({
     setSaving(true);
     setError("");
 
-    const res = await fetch("/api/lines", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lineId: result.id, field, value }),
-    });
+    try {
+      const res = await fetch("/api/lines", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lineId: result.id, field, value }),
+      });
 
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || "Failed to save.");
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Failed to save.");
+        setSaving(false);
+        return;
+      }
+
       setSaving(false);
-      return;
+      onSaved();
+    } catch (err) {
+      console.error("Failed to save:", err);
+      setError("Network error. Please try again.");
+      setSaving(false);
     }
-
-    setSaving(false);
-    onSaved();
   };
 
   const handleSaveUpdate = async (updates: Record<string, unknown>) => {
@@ -234,7 +240,7 @@ export default function EditLineModal({
               onClick={() =>
                 handleSavePatch(
                   "round_number",
-                  roundNumber !== "none" ? parseInt(roundNumber) : "",
+                  roundNumber !== "none" ? parseInt(roundNumber) : null,
                 )
               }
               disabled={
