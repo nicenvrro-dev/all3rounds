@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import { checkRateLimit, getRateLimitHeaders } from "@/lib/rate-limit";
 
 // 1. Bots probing for these paths will be rejected instantly to save Supabase CPU
 const BOT_BLOCKLIST = [
@@ -62,7 +63,7 @@ function buildCsp(isDev: boolean) {
     .join("; ");
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. Immediately block malicious bot probes
@@ -70,7 +71,44 @@ export async function middleware(request: NextRequest) {
     return new NextResponse(null, { status: 404 });
   }
 
-  // 2. Determine if this is a static route that should be cached
+  // 1b. Targeted Protection for Expensive Paths
+  // We limit APIs, Search, and Auth to protect databases and Supabase session budgets.
+  const isSearch = pathname === "/search" || pathname === "/api/search";
+  const isApiRequest = pathname.startsWith("/api/");
+  const isAuthOrAdmin = pathname.startsWith("/admin") || pathname.startsWith("/login");
+  const shouldLimit = (isSearch || isApiRequest || isAuthOrAdmin);
+
+  // Bypass rate limiting for localhost to prevent developer lockout.
+  const isLocalhost = request.nextUrl.hostname === "localhost" || request.nextUrl.hostname === "127.0.0.1";
+
+  if (shouldLimit && !isLocalhost) {
+    const ip =
+      (request as { ip?: string }).ip ||
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      "unknown";
+
+    const rateLimitType = isSearch ? "search" : "anonymous";
+    const rateLimitKey = `ip:${ip}:${rateLimitType}`;
+    
+    const rateRes = await checkRateLimit(rateLimitKey, rateLimitType);
+
+    if (!rateRes.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a moment." },
+        {
+          status: 429,
+          headers: {
+            ...getRateLimitHeaders(rateRes),
+            "Retry-After": "60",
+          },
+        },
+      );
+    }
+  }
+
+  // 2. Determine if this is a static route eligible for CDN caching
+
+  // 2. Determine if this is a static route eligible for CDN caching
   const isStaticRoute = !!PUBLIC_CACHE_PATHS[pathname];
 
   // 3. Skip session check for static routes to avoid setting cookies that prevent CDN caching

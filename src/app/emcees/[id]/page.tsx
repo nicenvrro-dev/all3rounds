@@ -4,8 +4,6 @@ import { createPublicClient } from "@/lib/supabase/server";
 import EmceeProfile from "./EmceeProfile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Battle } from "@/features/battles/hooks/use-battles-data";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { headers as nextHeaders } from "next/headers";
 
 export const revalidate = 86400; // 24 hours (1 day)
 
@@ -16,13 +14,6 @@ export default async function EmceeProfilePage({
 }) {
   const { id } = await params;
 
-  const headersList = await nextHeaders();
-  const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  const rateRes = await checkRateLimit(`ip:${ip}:emcee`, "anonymous");
-  
-  if (!rateRes.allowed) {
-    throw new Error("Too many requests from this IP. Please wait a moment.");
-  }
 
   const supabase = createPublicClient();
 

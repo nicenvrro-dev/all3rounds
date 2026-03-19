@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import { checkRateLimit, getRateLimitHeaders } from "@/lib/rate-limit";
 import { getCached, setCached } from "@/lib/cache";
 import type { SearchResult } from "@/lib/types";
 
@@ -47,42 +45,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // --- Rate limiting ---
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  let isSuperadmin = false;
-  if (user) {
-    // Profiling check via Pooler instead of REST
-    const profileRes = await db.query(
-      "SELECT role FROM user_profiles WHERE id = $1 LIMIT 1",
-      [user.id],
-    );
-    isSuperadmin = profileRes.rows[0]?.role === "superadmin";
-  }
-
-  if (!isSuperadmin) {
-    const rateLimitKey = user
-      ? `user:${user.id}`
-      : `ip:${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"}`;
-
-    const rateRes = await checkRateLimit(rateLimitKey, "search");
-
-    if (!rateRes.allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Please wait a moment and try again." },
-        {
-          status: 429,
-          headers: {
-            ...getRateLimitHeaders(rateRes),
-            "Retry-After": "60",
-          },
-        },
-      );
-    }
-  }
 
   // --- Cache check ---
   const cacheKey = `search:v2:${query.toLowerCase()}:${page}`;
