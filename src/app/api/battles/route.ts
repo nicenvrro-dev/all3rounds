@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const sort = searchParams.get("sort") || "latest";
 
   // --- Rate limiting ---
-  const rateLimitKey = `battles_dir:${request.headers.get("x-forwarded-for") || "unknown"}`;
+  const rateLimitKey = `battles_dir:${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"}`;
   const rateRes = await checkRateLimit(rateLimitKey, "directory");
 
   if (!rateRes.allowed) {

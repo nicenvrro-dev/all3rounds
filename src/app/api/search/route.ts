@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
   if (!isSuperadmin) {
     const rateLimitKey = user
       ? `user:${user.id}`
-      : `ip:${request.headers.get("x-forwarded-for") || "unknown"}`;
+      : `ip:${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"}`;
 
     const rateRes = await checkRateLimit(rateLimitKey, "search");
 
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
   }
 
   // --- Cache check ---
-  const cacheKey = `search:v2:${query}:${page}`;
+  const cacheKey = `search:v2:${query.toLowerCase()}:${page}`;
   const cachedData = await getCached(cacheKey);
   if (cachedData) {
     return NextResponse.json(cachedData, {
