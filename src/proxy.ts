@@ -73,10 +73,11 @@ export async function proxy(request: NextRequest) {
 
   // 1b. Targeted Protection for Expensive Paths
   // We limit APIs, Search, and Auth to protect databases and Supabase session budgets.
-  const isSearch = pathname === "/search" || pathname === "/api/search";
+  const isSearch = pathname === "/api/search";
   const isApiRequest = pathname.startsWith("/api/");
-  const isAuthOrAdmin = pathname.startsWith("/admin") || pathname.startsWith("/login");
-  const shouldLimit = (isSearch || isApiRequest || isAuthOrAdmin);
+  const isAuthOrAdmin =
+    pathname.startsWith("/admin") || pathname.startsWith("/login");
+  const shouldLimit = isSearch || isApiRequest || isAuthOrAdmin;
 
   // Bypass rate limiting for localhost to prevent developer lockout.
   const isLocalhost = request.nextUrl.hostname === "localhost" || request.nextUrl.hostname === "127.0.0.1";
@@ -89,24 +90,27 @@ export async function proxy(request: NextRequest) {
 
     const rateLimitType = isSearch ? "search" : "anonymous";
     const rateLimitKey = `ip:${ip}:${rateLimitType}`;
-    
+
     const rateRes = await checkRateLimit(rateLimitKey, rateLimitType);
 
     if (!rateRes.allowed) {
       return NextResponse.json(
-        { error: "Too many requests. Please wait a moment." },
+        {
+          error: "Too many requests. Please slow down.",
+          reset: rateRes.reset,
+        },
         {
           status: 429,
           headers: {
             ...getRateLimitHeaders(rateRes),
-            "Retry-After": "60",
+            "Retry-After": Math.ceil(
+              (rateRes.reset - Date.now()) / 1000,
+            ).toString(),
           },
         },
       );
     }
   }
-
-  // 2. Determine if this is a static route eligible for CDN caching
 
   // 2. Determine if this is a static route eligible for CDN caching
   const isStaticRoute = !!PUBLIC_CACHE_PATHS[pathname];
