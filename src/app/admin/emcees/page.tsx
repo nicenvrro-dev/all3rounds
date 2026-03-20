@@ -219,6 +219,7 @@ export default function EmceeAdminPage() {
                         <TableCell className="px-6 py-4 whitespace-nowrap">
                           <Link
                             href={`/emcees/${e.id}`}
+                            prefetch={false}
                             className="group/link flex flex-col hover:cursor-pointer"
                             target="_blank"
                             rel="noopener noreferrer"

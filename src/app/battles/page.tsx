@@ -14,11 +14,7 @@ export default async function BattlesPage() {
 
   // Fetch initial data on the server
   // Note: We use the same parameters as the default client state
-  const {
-    data: initialBattles,
-    error,
-    count,
-  } = await supabase
+  const response = await supabase
     .from("battles")
     .select("id, title, youtube_id, event_name, event_date, status, url", {
       count: "exact",
@@ -26,37 +22,35 @@ export default async function BattlesPage() {
     .neq("status", "excluded")
     .order("event_date", { ascending: false, nullsFirst: false });
 
-  // Fetch all filter data once
-  const { data: filterData } = await supabase
-    .from("battles")
-    .select("event_date, event_name")
-    .neq("status", "excluded");
-
-  const initialYears = filterData
-    ? Array.from(
-        new Set(
-          filterData
-            .filter((d) => d.event_date)
-            .map((d) => d.event_date!.split("-")[0]),
-        ),
-      ).sort((a, b) => b.localeCompare(a))
-    : [];
-
-  const initialEventNames = filterData
-    ? Array.from(new Set(filterData.map((d) => d.event_name).filter(Boolean)))
-        .sort((a, b) => a!.localeCompare(b!))
-        .filter((n): n is string => n !== null)
-    : [];
-
-  if (error) {
-    console.error("Error fetching battles on server:", error);
+  if (response.error) {
+    console.error("Error fetching battles on server:", response.error);
   }
+
+  const initialBattles = response.data || [];
+  const initialCount = response.count || 0;
+
+  // Derive filter data from initial matches to avoid a second heavy query
+  // Note: Since this is the default view (no status/year filter applied by default in the server component),
+  // this array contains all candidates for common filters.
+  const initialYears = Array.from(
+    new Set(
+      initialBattles
+        .filter((d) => d.event_date)
+        .map((d) => d.event_date!.split("-")[0]),
+    ),
+  ).sort((a, b) => b.localeCompare(a));
+
+  const initialEventNames = Array.from(
+    new Set(initialBattles.map((d) => d.event_name).filter(Boolean)),
+  )
+    .sort((a, b) => a!.localeCompare(b!))
+    .filter((n): n is string => n !== null);
 
   return (
     <Suspense fallback={<BattlesSkeleton />}>
       <BattlesDirectory
-        initialBattles={initialBattles || []}
-        initialCount={count || 0}
+        initialBattles={initialBattles}
+        initialCount={initialCount}
         initialYears={initialYears}
         initialEventNames={initialEventNames}
       />

@@ -43,6 +43,7 @@ export function BattleCard({
       {/* Thumbnail */}
       <Link
         href={`/battle/${battle.id}`}
+        prefetch={false}
         className="relative aspect-video w-full overflow-hidden bg-black"
         onClick={(e) => selectable && e.preventDefault()}
       >
@@ -87,6 +88,7 @@ export function BattleCard({
         <div className="flex-1">
           <Link
             href={`/battle/${battle.id}`}
+            prefetch={false}
             onClick={(e) => selectable && e.preventDefault()}
           >
             <h3 className="text-foreground decoration-primary/30 group-hover:text-primary line-clamp-2 text-sm leading-snug font-bold decoration-2 underline-offset-4 transition-all hover:underline">
@@ -111,7 +113,7 @@ export function BattleCard({
             variant="secondary"
             className="bg-muted/50 hover:bg-muted h-8 w-full rounded-lg text-[10px] font-bold transition-colors sm:h-9"
           >
-            <Link href={`/battle/${battle.id}`}>
+            <Link href={`/battle/${battle.id}`} prefetch={false}>
               <Info className="mr-1.5 h-3 w-3" />
               View Details
             </Link>

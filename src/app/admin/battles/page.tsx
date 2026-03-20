@@ -284,6 +284,7 @@ export default function BattleAdminPage() {
                         <TableCell className="max-w-[400px] px-6 py-4">
                           <Link
                             href={`/battle/${b.id}`}
+                            prefetch={false}
                             className="group/link flex flex-col hover:cursor-pointer overflow-hidden"
                             target="_blank"
                             rel="noopener noreferrer"

@@ -72,6 +72,7 @@ export function SuggestionCard({ suggestion: s, variant, onAction, processingId 
           <div className="flex flex-col gap-1 pr-4">
             <Link
               href={`/battle/${s.lines.battle.id}?t=${Math.floor(s.lines.start_time)}`}
+              prefetch={false}
               target="_blank"
               title="View Full Battle"
               className="text-primary/60 hover:text-primary focus:text-primary flex items-center gap-1.5 font-bold tracking-wider transition-all active:scale-95"

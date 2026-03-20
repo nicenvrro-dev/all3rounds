@@ -9,6 +9,7 @@ export function EmceeCard({ emcee }: EmceeCardProps) {
   return (
     <Link
       href={`/emcees/${emcee.id}`}
+      prefetch={false}
       className="group hover:border-primary/20 hover:shadow-primary/5 relative flex min-h-40 flex-col justify-between rounded-3xl border border-white/5 bg-[#141417] p-6 transition-all duration-500 hover:shadow-2xl active:scale-[0.98]"
     >
       <div className="bg-primary/5 absolute top-0 right-0 h-24 w-24 rounded-full opacity-0 blur-3xl transition-opacity group-hover:opacity-100" />
