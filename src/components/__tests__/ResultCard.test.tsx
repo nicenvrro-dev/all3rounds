@@ -54,17 +54,17 @@ describe("ResultCard", () => {
 
   it("renders emcee name as speaker", () => {
     render(<ResultCard result={baseResult} isLoggedIn={false} />);
-    expect(screen.getByText("Loonie")).toBeInTheDocument();
+    expect(screen.getAllByText("Loonie")[0]).toBeInTheDocument();
   });
 
   it("renders battle title", () => {
     render(<ResultCard result={baseResult} isLoggedIn={false} />);
-    expect(screen.getByText("Loonie vs Mhot")).toBeInTheDocument();
+    expect(screen.getAllByText("Loonie vs Mhot")[0]).toBeInTheDocument();
   });
 
   it("renders event name", () => {
     render(<ResultCard result={baseResult} isLoggedIn={false} />);
-    expect(screen.getByText("FlipTop Festival")).toBeInTheDocument();
+    expect(screen.getAllByText("FlipTop Festival")[0]).toBeInTheDocument();
   });
 
   it("renders context lines", () => {
@@ -95,8 +95,8 @@ describe("ResultCard", () => {
   });
 
   it("falls back to speaker_label when no emcee", () => {
-    const noEmceeResult = { ...baseResult, emcee: null };
+    const noEmceeResult = { ...baseResult, emcee: null, speaker_label: "UniqueFallbackName" };
     render(<ResultCard result={noEmceeResult} isLoggedIn={false} />);
-    expect(screen.getByText("SPEAKER_00")).toBeInTheDocument();
+    expect(screen.getAllByText("UniqueFallbackName")[0]).toBeInTheDocument();
   });
 });

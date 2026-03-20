@@ -2,36 +2,26 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 // Mock dependencies
-const mockSingle = vi.fn().mockResolvedValue({ data: null, error: null });
-const mockEq = vi.fn().mockReturnValue({ single: mockSingle });
-const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
-const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
-const mockRange = vi
-  .fn()
-  .mockResolvedValue({ data: [], error: null, count: 0 });
-const mockRpc = vi.fn().mockReturnValue({ range: mockRange });
-const mockIn = vi.fn().mockResolvedValue({ data: [] });
+const mockDbQuery = vi.fn().mockResolvedValue({ rows: [] });
 
-vi.mock("@/lib/supabase/server", () => {
-  const client = {
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
-    from: (...args: unknown[]) => mockFrom(...args),
-    rpc: (...args: unknown[]) => mockRpc(...args),
-  };
-  return {
-    createClient: vi.fn().mockResolvedValue(client),
-    createAdminClient: vi.fn().mockReturnValue(client),
-  };
-});
+vi.mock("@/lib/db", () => ({
+  db: {
+    query: (...args: unknown[]) => mockDbQuery(...args),
+    pool: { totalCount: 0, idleCount: 0, waitingCount: 0 }
+  }
+}));
 
-// Make mockFrom return chainable select -> eq/in
-mockFrom.mockImplementation(() => ({
-  select: mockSelect,
+vi.mock("@/lib/rate-limit", () => ({
+  checkRateLimit: vi.fn().mockResolvedValue({
+    allowed: true,
+    remaining: 29,
+    limit: 30,
+    reset: Date.now() + 60000,
+  }),
+  getRateLimitHeaders: vi.fn().mockReturnValue({}),
 }));
-mockSelect.mockImplementation(() => ({
-  eq: mockEq,
-  in: mockIn,
-}));
+
+// No longer needed
 
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({
@@ -63,16 +53,7 @@ function makeRequest(params: Record<string, string> = {}): NextRequest {
 describe("GET /api/search", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Restore default mock behavior
-    mockRange.mockResolvedValue({ data: [], error: null, count: 0 });
-    mockRpc.mockReturnValue({ range: mockRange });
-    mockFrom.mockImplementation(() => ({
-      select: mockSelect,
-    }));
-    mockSelect.mockImplementation(() => ({
-      eq: mockEq,
-      in: mockIn,
-    }));
+    mockDbQuery.mockResolvedValue({ rows: [] });
   });
 
   it("returns 400 if query is missing", async () => {
@@ -139,68 +120,34 @@ describe("GET /api/search", () => {
     expect(body.page).toBe(1);
   });
 
-  describe("retry on timeout", () => {
-    it("retries once on statement timeout (57014) and returns results on success", async () => {
-      // First call: timeout error, second call: success
-      mockRange
-        .mockResolvedValueOnce({
-          data: null,
-          error: {
-            code: "57014",
-            message: "canceling statement due to statement timeout",
-          },
-          count: null,
-        })
-        .mockResolvedValueOnce({
-          data: [],
-          error: null,
-          count: 0,
-        });
-
-      const res = await GET(makeRequest({ q: "pebrero" }));
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body).toHaveProperty("results");
-      // RPC should have been called twice (original + 1 or 2 retries depending on success)
-      expect(mockRange).toHaveBeenCalledTimes(2);
-    });
-
-    it("returns 500 after exhausting retries on persistent timeout", async () => {
-      const timeoutError = {
+  describe("database errors", () => {
+    it("returns 503 on statement timeout (57014)", async () => {
+      mockDbQuery.mockRejectedValueOnce({
         code: "57014",
         message: "canceling statement due to statement timeout",
-      };
-
-      // Both calls timeout
-      mockRange
-        .mockResolvedValueOnce({ data: null, error: timeoutError, count: null })
-        .mockResolvedValueOnce({ data: null, error: timeoutError, count: null })
-        .mockResolvedValueOnce({
-          data: null,
-          error: timeoutError,
-          count: null,
-        });
+      });
 
       const res = await GET(makeRequest({ q: "pebrero" }));
-      expect(res.status).toBe(500);
-      const body = await res.json();
-      expect(body.error).toBe("Search failed. Please try again.");
-      // Should have attempted exactly 3 times (original + 2 retries)
-      expect(mockRange).toHaveBeenCalledTimes(3);
+      expect(res.status).toBe(503);
+      expect(mockDbQuery).toHaveBeenCalledTimes(1);
     });
 
-    it("returns 500 immediately on non-timeout RPC errors without retrying", async () => {
-      // Non-timeout error (e.g. permission denied)
-      mockRange.mockResolvedValueOnce({
-        data: null,
-        error: { code: "42501", message: "permission denied" },
-        count: null,
+    it("returns 503 on connection timeout", async () => {
+      mockDbQuery.mockRejectedValueOnce({
+        message: "timeout exceeded when trying to connect",
       });
+
+      const res = await GET(makeRequest({ q: "pebrero" }));
+      expect(res.status).toBe(503);
+      expect(mockDbQuery).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns 500 on other database errors", async () => {
+      mockDbQuery.mockRejectedValueOnce({ code: "42501", message: "permission denied" });
 
       const res = await GET(makeRequest({ q: "test query" }));
       expect(res.status).toBe(500);
-      // Should have been called only once — no retry on non-timeout errors
-      expect(mockRange).toHaveBeenCalledTimes(1);
+      expect(mockDbQuery).toHaveBeenCalledTimes(1);
     });
   });
 });
