@@ -28,8 +28,8 @@ export const metadata: Metadata = {
   description:
     "Search any FlipTop battle line. Find out who said it, which battle, and watch it instantly.",
   icons: {
-    icon: "/icon.svg",
-    apple: "/apple-icon.png",
+    icon: "/favicon/favicon.ico",
+    apple: "/favicon/apple-touch-icon.png",
   },
   openGraph: {
     title: "All3Rounds — Filipino Battle Rap Archive",
