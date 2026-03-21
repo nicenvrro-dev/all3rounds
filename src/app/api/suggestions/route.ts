@@ -4,6 +4,8 @@ import { requirePermission } from "@/lib/auth";
 import { verifyCsrf } from "@/lib/csrf";
 import { z } from "zod";
 
+export const dynamic = "force-dynamic";
+
 const CreateSuggestionSchema = z.object({
   line_id: z.number().int().positive("Invalid line ID"),
   suggested_content: z

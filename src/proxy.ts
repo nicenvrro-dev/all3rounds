@@ -79,7 +79,7 @@ function buildCsp(isDev: boolean) {
     .join("; ");
 }
 
-export async function proxy(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. Immediately block malicious bot probes
