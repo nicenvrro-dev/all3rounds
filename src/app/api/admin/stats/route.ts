@@ -14,19 +14,42 @@ export async function GET(_request: NextRequest) {
 
   const adminClient = createAdminClient();
 
-  // Fetch all non-pending suggestions
-  const { data: suggestions, error: suggError } = await adminClient
-    .from("suggestions")
-    .select("status, reviewed_by, reviewed_at")
-    .neq("status", "pending");
-
-  if (suggError) {
-    console.error("Stats suggError:", suggError);
-    return NextResponse.json(
-      { error: "Failed to fetch stats." },
-      { status: 500 },
-    );
+  // Fetch all non-pending suggestions (handling Supabase 1000 row limit)
+  interface SuggestionData {
+    status: string;
+    reviewed_by: string | null;
+    reviewed_at: string;
   }
+  let allSuggestions: SuggestionData[] = [];
+  let from = 0;
+  const step = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data: chunk, error: suggError } = await adminClient
+      .from("suggestions")
+      .select("status, reviewed_by, reviewed_at")
+      .neq("status", "pending")
+      .range(from, from + step - 1);
+
+    if (suggError) {
+      console.error("Stats suggError at range", from, suggError);
+      return NextResponse.json(
+        { error: "Failed to fetch stats." },
+        { status: 500 },
+      );
+    }
+
+    if (chunk && chunk.length > 0) {
+      allSuggestions = allSuggestions.concat(chunk);
+      from += step;
+      if (chunk.length < step) hasMore = false;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  const suggestions = allSuggestions;
 
   // Fetch all user profiles to map IDs to names
   const { data: users, error: usersError } = await adminClient

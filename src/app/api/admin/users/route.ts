@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   const page = parseInt(searchParams.get("page") || "1", 10);
   const limit = parseInt(searchParams.get("limit") || "10", 10);
   const role = searchParams.get("role") || "all";
+  const search = searchParams.get("q") || "";
 
   const from = (page - 1) * limit;
   const to = from + limit - 1;
@@ -29,6 +30,10 @@ export async function GET(request: NextRequest) {
 
   if (role && role !== "all") {
     query = query.eq("role", role);
+  }
+
+  if (search) {
+    query = query.ilike("display_name", `%${search}%`);
   }
 
   const { data: profiles, count, error } = await query.range(from, to);
