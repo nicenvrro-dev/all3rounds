@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "build:cf": "opennextjs-cloudflare build",
+    "build:cf": "next build && opennextjs-cloudflare build",
     "preview:cf": "pnpm build:cf && wrangler pages dev",
     "deploy:cf": "pnpm build:cf && wrangler pages deploy"
   },
