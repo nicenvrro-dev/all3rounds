@@ -93,10 +93,13 @@ export default async function middleware(request: NextRequest) {
   const cacheConfig = PUBLIC_CACHE_CONFIGS.find((config) => config.pattern.test(pathname));
 
   let response: NextResponse;
-  if (cacheConfig) {
-    // PUBLIC PAGES: Bypass Supabase to stay under 10ms CPU limit.
+  if (cacheConfig || isApiRequest) {
+    // PUBLIC PAGES & APIs: Bypass Supabase to stay under 10ms CPU limit.
+    // APIs handle their own auth natively, so middleware doesn't need to double-check.
     response = NextResponse.next();
-    response.headers.set("Cache-Control", cacheConfig.cache);
+    if (cacheConfig) {
+      response.headers.set("Cache-Control", cacheConfig.cache);
+    }
   } else {
     // PROTECTED PAGES: Fetch session for /admin or non-cached paths.
     response = await updateSession(request);

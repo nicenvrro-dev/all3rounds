@@ -1,4 +1,5 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 
 // ============================================================================
 // Types
@@ -55,6 +56,14 @@ export async function getUserWithRole(): Promise<{
   user: AuthUser | null;
   role: UserRole;
 }> {
+  //Fast exit for completely anonymous users
+  const cookieStore = await cookies();
+  const hasAuthCookie = cookieStore.getAll().some((cookie) => cookie.name.includes("-auth-token"));
+
+  if (!hasAuthCookie) {
+    return { user: null, role: "viewer" };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
