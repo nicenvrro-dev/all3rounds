@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { createClient } from "@/lib/supabase/server";
 import { getCached, setCached } from "@/lib/cache";
 import { checkRateLimit, getRateLimitHeaders } from "@/lib/rate-limit";
-import type { SearchResult } from "@/lib/types";
+import type { SearchResult, BattleStatus } from "@/lib/types";
 
 interface SearchRpcRow {
   id: number;
@@ -58,7 +58,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-
   // --- Cache check ---
   const cacheKey = `search:v2:${query.toLowerCase()}:${page}`;
   const cachedData = await getCached(cacheKey);
@@ -66,71 +65,30 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(cachedData, {
       headers: {
         "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=59",
-        ...rateLimitHeaders
+        ...rateLimitHeaders,
       },
     });
   }
 
-  // --- Hybrid Search with pooled connection ---
+  const supabase = await createClient();
+
+  // --- Hybrid Search with Supabase RPC ---
+  // Using .rpc() is Cloudflare-safe (HTTP-based) and avoids TCP pooling issues.
   let data: SearchRpcRow[] = [];
-  let count = 0;
+  let countRows = 0;
 
-  const startTime = Date.now();
   try {
-    // Use search_fast for ALL queries (FTS-only on content, trigram only on small tables)
-    // This eliminates the 10-second trigram scans that were killing Supavisor.
-    const searchRes = await db.query<SearchRpcRow & { full_count: string }>(
-      `SELECT *, count(*) OVER() AS full_count FROM search_fast($1) OFFSET $2 LIMIT $3`,
-      [query, offset, limit],
-    );
+    const { data: searchData, error: searchError, count } = await supabase
+      .rpc("search_fast", { search_term: query }, { count: "exact" })
+      .range(offset, offset + limit - 1);
 
-    data = searchRes.rows.map((row) => ({
-      ...row,
-      id: Number(row.id),
-    }));
+    if (searchError) throw searchError;
 
-    if (data.length > 0) {
-      count = parseInt(searchRes.rows[0].full_count, 10);
-    } else if (page === 1) {
-      count = 0;
-    } else {
-      const countRes = await db.query<{ count: string }>(
-        `SELECT count(*) FROM search_fast($1)`,
-        [query],
-      );
-      count = parseInt(countRes.rows[0].count, 10);
-    }
+    data = (searchData as SearchRpcRow[]) || [];
+    countRows = count || 0;
+    
   } catch (err: unknown) {
-    const error = err as { code?: string; message?: string };
-    const duration = Date.now() - startTime;
-
-    // Log pool status for debugging
-    const pool = db.pool;
-    const poolStatus = `[POOL] Total: ${pool.totalCount}, Idle: ${pool.idleCount}, Waiting: ${pool.waitingCount}`;
-
-    // Check for statement timeout (57014) - Postgres level
-    if (error.code === "57014") {
-      console.warn(
-        `Search STATEMENT timeout (${duration}ms) for "${query}". ${poolStatus}`,
-      );
-      return NextResponse.json(
-        { error: "The database is busy. Please try again in a few seconds." },
-        { status: 503, headers: { "Retry-After": "5" } },
-      );
-    }
-
-    // Check for connection timeout - Pooler level
-    if (error.message?.includes("timeout exceeded when trying to connect")) {
-      console.error(
-        `Search CONNECTION timeout after ${duration}ms for "${query}". ${poolStatus}`,
-      );
-      return NextResponse.json(
-        { error: "Too many people searching. Please try again." },
-        { status: 503, headers: { "Retry-After": "5" } },
-      );
-    }
-
-    console.error(`Search Pooler error (${duration}ms):`, err, poolStatus);
+    console.error(`Search engine error:`, err);
     return NextResponse.json(
       { error: "Search failed. Please try again." },
       { status: 500 },
@@ -138,7 +96,7 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Construct Initial Result Structure ──
-  const formattedData = (data as SearchRpcRow[] | null)?.map((row) => ({
+  const formattedData: SearchResult[] = data.map((row) => ({
     id: row.id,
     content: row.content,
     start_time: row.start_time,
@@ -155,22 +113,19 @@ export async function GET(request: NextRequest) {
       youtube_id: row.battle_youtube_id,
       event_name: row.battle_event_name,
       event_date: row.battle_event_date,
-      status: row.battle_status,
+      status: row.battle_status as BattleStatus,
       url: `https://www.youtube.com/watch?v=${row.battle_youtube_id}`,
-      participants: [] as {
-        label: string;
-        emcee: { id: string; name: string } | null;
-      }[],
+      participants: [],
     },
     rank: row.rank,
-    prev_line: undefined as SearchResult["prev_line"],
-    next_line: undefined as SearchResult["next_line"],
-    emcees: [] as { id: string; name: string }[],
+    prev_line: undefined,
+    next_line: undefined,
+    emcees: [],
   }));
 
   // ── Batch Fetch Remaining Data (Emcees, Participants, Context) ──
   try {
-    if (formattedData && formattedData.length > 0) {
+    if (formattedData.length > 0) {
       const uniqueEmceeIds = new Set<string>();
       formattedData.forEach((row) => {
         row.speaker_ids?.forEach((id) => uniqueEmceeIds.add(id));
@@ -181,70 +136,56 @@ export async function GET(request: NextRequest) {
         new Set(formattedData.map((row) => row.battle.id)),
       );
 
-      const contextLineIds = new Set<number>();
-      formattedData.forEach((row) => {
-        contextLineIds.add(row.id - 1);
-        contextLineIds.add(row.id + 1);
-      });
-      const queryIds = Array.from(contextLineIds);
+      const contextLineIds = formattedData.flatMap((row) => [
+        row.id - 1,
+        row.id + 1,
+      ]);
+
+      interface ParticipantRow {
+        battle_id: string;
+        label: string;
+        emcee: { id: string; name: string } | { id: string; name: string }[] | null;
+      }
+
+      interface LineRow {
+        id: number;
+        content: string;
+        battle_id: string;
+        speaker_label: string | null;
+        round_number: number | null;
+      }
 
       const [emceesResult, participantsResult, contextResult] =
         await Promise.all([
           uniqueEmceeIds.size > 0
-            ? db.query<{ id: string; name: string }>(
-                "SELECT id, name FROM emcees WHERE id = ANY($1)",
-                [Array.from(uniqueEmceeIds)],
-              )
-            : Promise.resolve({ rows: [] as { id: string; name: string }[] }),
+            ? supabase
+                .from("emcees")
+                .select("id, name")
+                .in("id", Array.from(uniqueEmceeIds))
+            : Promise.resolve({ data: [] as { id: string; name: string }[] | null }),
 
           uniqueBattleIds.length > 0
-            ? db.query<{
-                battle_id: string;
-                label: string;
-                emcee_id: string | null;
-                emcee_name: string | null;
-              }>(
-                `SELECT bp.battle_id, bp.label, e.id as emcee_id, e.name as emcee_name 
-                 FROM battle_participants bp
-                 LEFT JOIN emcees e ON bp.emcee_id = e.id
-                 WHERE bp.battle_id = ANY($1)`,
-                [uniqueBattleIds],
-              )
-            : Promise.resolve({
-                rows: [] as {
-                  battle_id: string;
-                  label: string;
-                  emcee_id: string | null;
-                  emcee_name: string | null;
-                }[],
-              }),
+            ? supabase
+                .from("battle_participants")
+                .select("battle_id, label, emcee:emcees(id, name)")
+                .in("battle_id", uniqueBattleIds)
+            : Promise.resolve({ data: [] as ParticipantRow[] | null }),
 
-          queryIds.length > 0
-            ? db.query<{
-                id: number | string;
-                content: string;
-                battle_id: string;
-                speaker_label: string | null;
-                round_number: number | null;
-              }>(
-                "SELECT id, content, battle_id, speaker_label, round_number FROM lines WHERE id = ANY($1)",
-                [queryIds],
-              )
-            : Promise.resolve({
-                rows: [] as {
-                  id: number | string;
-                  content: string;
-                  battle_id: string;
-                  speaker_label: string | null;
-                  round_number: number | null;
-                }[],
-              }),
+          contextLineIds.length > 0
+            ? supabase
+                .from("lines")
+                .select("id, content, battle_id, speaker_label, round_number")
+                .in("id", contextLineIds)
+            : Promise.resolve({ data: [] as LineRow[] | null }),
         ]);
 
-      if (emceesResult.rows.length > 0) {
-        const emceeMap = new Map(emceesResult.rows.map((e) => [e.id, e]));
+      const emceesData = emceesResult.data || [];
+      const participantsData = (participantsResult.data as unknown as ParticipantRow[]) || [];
+      const contextData = (contextResult.data as unknown as LineRow[]) || [];
+
+      if (emceesData.length > 0) {
+        const emceeMap = new Map(emceesData.map((e) => [e.id, e]));
         formattedData.forEach((row) => {
-          // Fill in primary emcee name if missing
           if (row.emcee && row.emcee.name === "Unknown") {
             const e = emceeMap.get(row.emcee.id);
             if (e) row.emcee.name = e.name;
@@ -262,19 +203,16 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      if (participantsResult.rows.length > 0) {
-        const participantMap = new Map<
-          string,
-          { label: string; emcee: { id: string; name: string } | null }[]
-        >();
-        participantsResult.rows.forEach((p) => {
+      if (participantsData.length > 0) {
+        const participantMap = new Map<string, { label: string; emcee: { id: string; name: string } | null }[]>();
+        participantsData.forEach((p) => {
           if (!participantMap.has(p.battle_id))
             participantMap.set(p.battle_id, []);
+          
+          const emceeObj = Array.isArray(p.emcee) ? p.emcee[0] : p.emcee;
           participantMap.get(p.battle_id)?.push({
             label: p.label,
-            emcee: p.emcee_id
-              ? { id: p.emcee_id, name: p.emcee_name || "Unknown" }
-              : null,
+            emcee: (emceeObj as { id: string; name: string }) || null,
           });
         });
         formattedData.forEach((row) => {
@@ -282,15 +220,15 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      if (contextResult.rows.length > 0) {
+      if (contextData.length > 0) {
         const contextMap = new Map(
-          contextResult.rows.map((line) => [Number(line.id), line]),
+          contextData.map((line) => [line.id, line]),
         );
         formattedData.forEach((row) => {
           const prev = contextMap.get(row.id - 1);
           if (prev && prev.battle_id === row.battle.id) {
             row.prev_line = {
-              id: Number(prev.id),
+              id: prev.id,
               content: prev.content,
               speaker_label: prev.speaker_label,
               round_number: prev.round_number,
@@ -299,7 +237,7 @@ export async function GET(request: NextRequest) {
           const next = contextMap.get(row.id + 1);
           if (next && next.battle_id === row.battle.id) {
             row.next_line = {
-              id: Number(next.id),
+              id: next.id,
               content: next.content,
               speaker_label: next.speaker_label,
               round_number: next.round_number,
@@ -313,17 +251,18 @@ export async function GET(request: NextRequest) {
   }
 
   const result = {
-    results: formattedData || [],
-    total: count || 0,
+    results: formattedData,
+    total: countRows,
     page,
-    totalPages: Math.ceil((count || 0) / limit),
+    totalPages: Math.ceil(countRows / limit),
   };
 
-  await setCached(cacheKey, result, 3600); // 1 hour Redis cache
+  await setCached(cacheKey, result, 3600);
   return NextResponse.json(result, {
     headers: {
       "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=59",
-      ...rateLimitHeaders
+      ...rateLimitHeaders,
     },
   });
 }
+
