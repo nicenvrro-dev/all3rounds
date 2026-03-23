@@ -147,6 +147,22 @@ export async function checkRateLimit(
 }
 
 /**
+ * IP detection for rate-limiting, prioritizing Cloudflare Edge headers.
+ */
+export function getClientIp(request: Request): string {
+  const cfConnectingIp = request.headers.get("cf-connecting-ip");
+  if (cfConnectingIp) return cfConnectingIp;
+
+  const xForwardedFor = request.headers.get("x-forwarded-for");
+  if (xForwardedFor) {
+    return xForwardedFor.split(",")[0].trim();
+  }
+
+  // Fallback for Vercel/Local dev
+  return (request as { ip?: string }).ip || "anonymous";
+}
+
+/**
  * Helper to generate standard Rate Limit headers
  */
 export function getRateLimitHeaders(res: {

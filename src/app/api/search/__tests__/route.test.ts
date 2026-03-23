@@ -31,20 +31,6 @@ vi.mock("@/lib/supabase/server", () => {
   };
 });
 
-vi.mock("@/lib/rate-limit", () => ({
-  checkRateLimit: vi.fn().mockResolvedValue({
-    allowed: true,
-    remaining: 9,
-    limit: 10,
-    reset: Date.now() + 60000,
-  }),
-  getRateLimitHeaders: vi.fn().mockReturnValue({
-    "X-RateLimit-Limit": "10",
-    "X-RateLimit-Remaining": "9",
-    "X-RateLimit-Reset": "123456789",
-  }),
-}));
-
 vi.mock("@/lib/cache", () => ({
   getCached: vi.fn().mockResolvedValue(null),
   setCached: vi.fn().mockResolvedValue(undefined),

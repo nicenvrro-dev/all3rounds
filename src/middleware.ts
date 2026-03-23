@@ -1,6 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import { checkRateLimit, getRateLimitHeaders } from "@/lib/rate-limit";
+import {
+  checkRateLimit,
+  getRateLimitHeaders,
+  getClientIp,
+} from "@/lib/rate-limit";
 
 // 1. Bots probing for these paths will be rejected instantly to save Supabase CPU
 const BOT_BLOCKLIST = [
@@ -102,16 +106,15 @@ export default async function middleware(request: NextRequest) {
     request.nextUrl.hostname === "localhost" ||
     request.nextUrl.hostname === "127.0.0.1";
 
-  if (shouldLimit && !isLocalhost) {
-    const ip =
-      (request as { ip?: string }).ip ||
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      "unknown";
+  let rateLimitHeaders: Record<string, string> = {};
 
+  if (shouldLimit && !isLocalhost) {
+    const ip = getClientIp(request);
     const rateLimitType = isSearch ? "search" : "anonymous";
     const rateLimitKey = `ip:${ip}:${rateLimitType}`;
 
     const rateRes = await checkRateLimit(rateLimitKey, rateLimitType);
+    rateLimitHeaders = getRateLimitHeaders(rateRes) as Record<string, string>;
 
     if (!rateRes.allowed) {
       return NextResponse.json(
@@ -122,7 +125,7 @@ export default async function middleware(request: NextRequest) {
         {
           status: 429,
           headers: {
-            ...getRateLimitHeaders(rateRes),
+            ...rateLimitHeaders,
             "Retry-After": Math.ceil(
               (rateRes.reset - Date.now()) / 1000,
             ).toString(),
@@ -150,6 +153,11 @@ export default async function middleware(request: NextRequest) {
   const csp = buildCsp(isDev);
 
   response.headers.set("Content-Security-Policy", csp);
+
+  // Attach rate limit headers to the successful response so the frontend can show them.
+  Object.entries(rateLimitHeaders).forEach(([key, value]) => {
+    response.headers.set(key, value);
+  });
 
   return response;
 }

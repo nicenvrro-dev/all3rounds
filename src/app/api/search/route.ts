@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCached, setCached } from "@/lib/cache";
-import { checkRateLimit, getRateLimitHeaders } from "@/lib/rate-limit";
 import type { SearchResult, BattleStatus } from "@/lib/types";
 
 interface SearchRpcRow {
@@ -46,18 +45,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // --- Rate Limit check ---
-  const ip = request.headers.get("x-forwarded-for") || "anonymous";
-  const rateLimitResult = await checkRateLimit(ip, "search");
-  const rateLimitHeaders = getRateLimitHeaders(rateLimitResult);
-
-  if (!rateLimitResult.allowed) {
-    return NextResponse.json(
-      { error: "Too many search requests. Please wait a moment." },
-      { status: 429, headers: rateLimitHeaders },
-    );
-  }
-
   // --- Cache check ---
   const cacheKey = `search:v2:${query.toLowerCase()}:${page}`;
   const cachedData = await getCached(cacheKey);
@@ -65,7 +52,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(cachedData, {
       headers: {
         "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=59",
-        ...rateLimitHeaders,
       },
     });
   }
@@ -261,7 +247,6 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(result, {
     headers: {
       "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=59",
-      ...rateLimitHeaders,
     },
   });
 }
