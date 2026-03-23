@@ -22,7 +22,6 @@
   "dependencies": {
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.95.3",
-    "@types/pg": "^8.18.0",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.36.2",
     "class-variance-authority": "^0.7.1",
@@ -30,7 +29,6 @@
     "date-fns": "^4.1.0",
     "lucide-react": "^0.563.0",
     "next": "16.1.6",
-    "pg": "^8.20.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
