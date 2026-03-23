@@ -6,27 +6,9 @@ import {
   getClientIp,
 } from "@/lib/rate-limit";
 
-// 1. Bots probing for these paths will be rejected instantly to save Supabase CPU
-const BOT_BLOCKLIST = [
-  /\.php$/,
-  /\.env$/,
-  /\.sh_history$/,
-  /\.aws_json$/,
-  /wp-content/,
-  /wp-includes/,
-  /wp-admin/,
-  /cgi-bin/,
-  /\.jsp$/,
-  /\.git/,
-  /\.sql$/,
-  /\.bak$/,
-  /SystemManager/,
-  /pentaho/,
-  /artemis/,
-];
-
-// 2. These paths are safe to cache publicly because they don't contain user-specific data.
+// 1. These paths are safe to cache publicly because they don't contain user-specific data.
 // We use regex to support sub-paths like /battles/slug or /emcees/slug.
+// Bypassing Supabase session checks here
 const PUBLIC_CACHE_CONFIGS = [
   {
     pattern: /^\/$/,
@@ -34,13 +16,11 @@ const PUBLIC_CACHE_CONFIGS = [
   },
   {
     pattern: /^\/privacy-policy$/,
-    cache:
-      "public, max-age=14400, s-maxage=31536000, stale-while-revalidate=59",
+    cache: "public, max-age=14400, s-maxage=31536000, stale-while-revalidate=59",
   },
   {
     pattern: /^\/terms-of-service$/,
-    cache:
-      "public, max-age=14400, s-maxage=31536000, stale-while-revalidate=59",
+    cache: "public, max-age=14400, s-maxage=31536000, stale-while-revalidate=59",
   },
   {
     pattern: /^\/battles?(\/.*)?$/,
@@ -87,83 +67,48 @@ function buildCsp(isDev: boolean) {
 
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isDev = process.env.NODE_ENV !== "production";
 
-  // 1. Immediately block malicious bot probes
-  if (BOT_BLOCKLIST.some((pattern) => pattern.test(pathname))) {
-    return new NextResponse(null, { status: 404 });
-  }
-
-  // 1b. Targeted Protection for Expensive Paths
-  // We limit APIs, Search, and Auth to protect databases and Supabase session budgets.
+  // 1. Maintain Original Rate Limit Logic (API, Search, Auth, Admin)
   const isSearch = pathname === "/api/search";
   const isApiRequest = pathname.startsWith("/api/");
-  const isAuthOrAdmin =
-    pathname.startsWith("/admin") || pathname.startsWith("/login");
+  const isAuthOrAdmin = pathname.startsWith("/admin") || pathname.startsWith("/login") || pathname.startsWith("/auth");
   const shouldLimit = isSearch || isApiRequest || isAuthOrAdmin;
-
-  // Bypass rate limiting for localhost to prevent developer lockout.
-  const isLocalhost =
-    request.nextUrl.hostname === "localhost" ||
-    request.nextUrl.hostname === "127.0.0.1";
 
   let rateLimitHeaders: Record<string, string> = {};
 
-  if (shouldLimit && !isLocalhost) {
+  if (shouldLimit && !isDev) {
     const ip = getClientIp(request);
     const rateLimitType = isSearch ? "search" : "anonymous";
     const rateLimitKey = `ip:${ip}:${rateLimitType}`;
-
     const rateRes = await checkRateLimit(rateLimitKey, rateLimitType);
     rateLimitHeaders = getRateLimitHeaders(rateRes) as Record<string, string>;
 
     if (!rateRes.allowed) {
-      return NextResponse.json(
-        {
-          error: "Too many requests. Please slow down.",
-          reset: rateRes.reset,
-        },
-        {
-          status: 429,
-          headers: {
-            ...rateLimitHeaders,
-            "Retry-After": Math.ceil(
-              (rateRes.reset - Date.now()) / 1000,
-            ).toString(),
-          },
-        },
-      );
+      return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: rateLimitHeaders });
     }
   }
 
-  // 2. Determine if this is a static route eligible for CDN caching
-  const cacheConfig = PUBLIC_CACHE_CONFIGS.find((config) =>
-    config.pattern.test(pathname),
-  );
+  // 2. Optimized Cache & Session Logic
+  const cacheConfig = PUBLIC_CACHE_CONFIGS.find((config) => config.pattern.test(pathname));
 
-  // 3. Skip session check for static routes to avoid setting cookies that prevent CDN caching
   let response: NextResponse;
   if (cacheConfig) {
+    // PUBLIC PAGES: Bypass Supabase to stay under 10ms CPU limit.
     response = NextResponse.next();
     response.headers.set("Cache-Control", cacheConfig.cache);
   } else {
+    // PROTECTED PAGES: Fetch session for /admin or non-cached paths.
     response = await updateSession(request);
   }
 
-  const isDev = process.env.NODE_ENV !== "production";
-  const csp = buildCsp(isDev);
-
-  response.headers.set("Content-Security-Policy", csp);
-
-  // Attach rate limit headers to the successful response so the frontend can show them.
-  Object.entries(rateLimitHeaders).forEach(([key, value]) => {
-    response.headers.set(key, value);
-  });
+  // 3. Global Headers
+  response.headers.set("Content-Security-Policy", buildCsp(isDev));
+  Object.entries(rateLimitHeaders).forEach(([key, value]) => response.headers.set(key, value));
 
   return response;
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|manifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|js|css|map|ico)).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|js|css|map|ico)).*)"],
 };
